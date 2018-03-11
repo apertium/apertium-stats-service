@@ -104,7 +104,12 @@ pub fn get_file_stats(
                             Ok(Event::End(ref e)) if e.name() == b"pardefs" => in_pardefs = false,
                             Ok(Event::Eof) => break,
                             Err(e) => {
-                                println!("Error at position {} in {}: {:?}", reader.buffer_position(), file_path, e); // TODO: log instead
+                                println!(
+                                    "Error at position {} in {}: {:?}",
+                                    reader.buffer_position(),
+                                    file_path,
+                                    e
+                                ); // TODO: log instead
                                 return Ok(vec![]); // TODO: pass up Err instead
                             }
                             _ => (),
@@ -117,7 +122,7 @@ pub fn get_file_stats(
                         (StatKind::Paradigms, pardef_count.to_string()),
                     ])
                 }
-                &FileKind::Bidix | &FileKind::MetaBidix  => {
+                &FileKind::Bidix | &FileKind::MetaBidix => {
                     let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
                     let mut buf = Vec::new();
 
@@ -133,7 +138,12 @@ pub fn get_file_stats(
                             Ok(Event::End(ref e)) if e.name() == b"section" => in_section = false,
                             Ok(Event::Eof) => break,
                             Err(e) => {
-                                println!("Error at position {} in {}: {:?}", reader.buffer_position(), file_path, e); // TODO: log instead
+                                println!(
+                                    "Error at position {} in {}: {:?}",
+                                    reader.buffer_position(),
+                                    file_path,
+                                    e
+                                ); // TODO: log instead
                                 return Ok(vec![]); // TODO: pass up Err instead
                             }
                             _ => (),
@@ -161,7 +171,8 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
     }
 
     let matches = RE.matches(file_name.trim_right_matches(".xml"));
-    if matches.matched(0) { // TODO: convert this into a find?
+    if matches.matched(0) {
+        // TODO: convert this into a find?
         Some(FileKind::Monodix)
     } else if matches.matched(1) {
         Some(FileKind::Bidix)

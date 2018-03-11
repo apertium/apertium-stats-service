@@ -18,19 +18,22 @@ extern crate regex;
 extern crate rocket;
 #[macro_use]
 extern crate rocket_contrib;
+extern crate rocket_cors;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 
 use std::env;
 
+use diesel::dsl::sql;
 use dotenv::dotenv;
 use regex::RegexSet;
 use rocket_contrib::{Json, Value};
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use rocket::http::{Method, Status};
 use rocket::Request;
-use rocket::State;
-use rocket::http::Status;
 use rocket::response::{Responder, Response};
+use rocket::State;
 use self::diesel::prelude::*;
 
 use db::DbConn;
@@ -87,17 +90,18 @@ impl<'r> Responder<'r> for JsonResult {
 
 #[get("/")]
 fn index() -> &'static str {
-    "
-    USAGE
-      GET /apertium-<code1>(-<code2>)
-        retrieves statistics for the specified package
-      GET /apertium-<code1>(-<code2>)/<kind>
-        retrieves <kind> statistics for the specified package
-      POST /apertium-<code1>(-<code2>)
-        calculates statistics for the specified package
-      POST /apertium-<code1>(-<code2>)/<kind>
-        calculates <kind> statistics for the specified package
-    "
+    "USAGE
+    GET /apertium-<code1>(-<code2>)
+    retrieves statistics for the specified package
+
+    GET /apertium-<code1>(-<code2>)/<kind>
+    retrieves <kind> statistics for the specified package
+
+    POST /apertium-<code1>(-<code2>)
+    calculates statistics for the specified package
+
+    POST /apertium-<code1>(-<code2>)/<kind>
+    calculates <kind> statistics for the specified package"
 }
 
 #[get("/<name>")]
@@ -149,8 +153,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
             } else {
                 let maybe_entries = entries_db::table
                     .filter(entries_db::name.eq(name))
-                    // .filter(sql("TRUE GROUP BY kind, path")) // TODO: fix this to group by kind and path
-                    .group_by(entries_db::kind)
+                    .filter(sql("1 GROUP BY kind, path")) // HACK: Diesel has no real group_by :(
                     .order(entries_db::created)
                     .load::<models::Entry>(&*conn);
                 if let Ok(entries) = maybe_entries {
@@ -202,6 +205,17 @@ fn main() {
     let pool = db::init_pool(&database_url);
     let worker = Worker::new(pool.clone());
 
+    let cors_options = rocket_cors::Cors {
+        allowed_origins: AllowedOrigins::all(),
+        allowed_methods: vec![Method::Get, Method::Post]
+            .into_iter()
+            .map(From::from)
+            .collect(),
+        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
+        allow_credentials: true,
+        ..Default::default()
+    };
+
     rocket::ignite()
         .manage(pool)
         .manage(worker)
@@ -215,5 +229,6 @@ fn main() {
                 calculate_specific_stats,
             ],
         )
+        .attach(cors_options)
         .launch();
 }

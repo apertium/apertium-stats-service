@@ -7,7 +7,6 @@ Rust web service that enables the efficient parallel compilation and
 distribution of statistics regarding Apertium packages via a RESTful API.
 
 Usage
-
 -----
 See `api.html` for the Swagger UI representation of the OpenAPI 3.0 spec.
 
