@@ -1,0 +1,27 @@
+[package]
+name = "apertium-stats-service"
+version = "0.1.0"
+authors = ["Sushain Cherivirala <sushain@skc.name>"]
+
+[dependencies]
+chrono = { version = "0.4.0", features = ["serde"] }
+diesel = { version = "1.0", features = ["sqlite", "serde_json", "chrono"] }
+futures = "0.1"
+hyper = "0.11"
+hyper-tls = "0.1.2"
+lazy_static = "1.0"
+r2d2 = "0.8"
+r2d2-diesel = "1.0"
+regex = "0.2"
+rocket = "0.3.6"
+rocket_codegen = "0.3.6"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+tokio-core = "0.1"
+quick-xml = "0.10.0"
+
+[dependencies.rocket_contrib]
+version = "*"
+default-features = false
+features = ["json"]
