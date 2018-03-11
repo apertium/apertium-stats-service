@@ -111,6 +111,7 @@ components:
         - Rlx
         - Transfer
         - Lexc
+        - Twol
     Stats:
       type: array
       items:

@@ -4,7 +4,7 @@ extern crate hyper_tls;
 extern crate quick_xml;
 extern crate tokio_core;
 
-use regex::RegexSet;
+use regex::{RegexSet, RegexSetBuilder};
 use std::fmt;
 use std::str;
 
@@ -33,14 +33,15 @@ impl fmt::Display for StatKind {
 #[allow(dead_code)]
 #[derive(PartialEq, Clone, Debug, Serialize)]
 pub enum FileKind {
-    Monodix, // emits Stems, Paradigms
-    Bidix, // emits Stem
+    Monodix,     // emits Stems, Paradigms
+    Bidix,       // emits Stem
     MetaMonodix, // emits Stems, Paradigms
-    MetaBidix, // emits Stems
+    MetaBidix,   // emits Stems
     Postdix,
     Rlx,
-    Transfer,
+    Transfer, // emits Rules, Macros
     Lexc,
+    Twol,
 }
 
 impl fmt::Display for FileKind {
@@ -157,7 +158,38 @@ pub fn get_file_stats(
 
                     Ok(vec![(StatKind::Stems, e_count.to_string())])
                 }
-                _ => Ok(vec![])
+                &FileKind::Transfer => {
+                    let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
+                    let mut buf = Vec::new();
+
+                    let mut rule_count = 0;
+                    let mut macro_count = 0;
+
+                    loop {
+                        match reader.read_event(&mut buf) {
+                            Ok(Event::Start(ref e)) if e.name() == b"rule" => rule_count += 1,
+                            Ok(Event::Start(ref e)) if e.name() == b"macro" => macro_count += 1,
+                            Ok(Event::Eof) => break,
+                            Err(e) => {
+                                println!(
+                                    "Error at position {} in {}: {:?}",
+                                    reader.buffer_position(),
+                                    file_path,
+                                    e
+                                ); // TODO: log instead
+                                return Ok(vec![]); // TODO: pass up Err instead
+                            }
+                            _ => (),
+                        }
+                        buf.clear();
+                    }
+
+                    Ok(vec![
+                        (StatKind::Rules, rule_count.to_string()),
+                        (StatKind::Macros, macro_count.to_string()),
+                    ])
+                }
+                _ => Ok(vec![]),
             })
     });
 
@@ -166,7 +198,7 @@ pub fn get_file_stats(
 
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
     lazy_static! {
-        static ref RE: RegexSet = RegexSet::new(&[
+        static ref RE: RegexSet = RegexSetBuilder::new(&[
             format!(r"^apertium-{re}\.{re}\.dix$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}-{re}\.{re}-{re}\.dix$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
@@ -176,19 +208,25 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
             format!(r"^apertium-{re}-{re}\.{re}-{re}\.rlx$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}\.{re}\.lexc$", re=super::LANG_CODE_RE),
-        ]).unwrap();
+            format!(r"^apertium-{re}-{re}\.{re}\.twol$", re=super::LANG_CODE_RE),
+        ]).size_limit(50000000).build().unwrap();
     }
 
     let matches = RE.matches(file_name.trim_right_matches(".xml"));
-    matches.into_iter().collect::<Vec<_>>().pop().and_then(|i| match i {
-        0 => Some(FileKind::Monodix),
-        1 => Some(FileKind::Bidix),
-        2 | 3 => Some(FileKind::MetaMonodix),
-        4 => Some(FileKind::MetaBidix),
-        5 => Some(FileKind::Postdix),
-        6 => Some(FileKind::Rlx),
-        7 => Some(FileKind::Transfer),
-        8 => Some(FileKind::Lexc),
-        _ => None
-    })
+    matches
+        .into_iter()
+        .collect::<Vec<_>>()
+        .pop()
+        .and_then(|i| match i {
+            0 => Some(FileKind::Monodix),
+            1 => Some(FileKind::Bidix),
+            2 | 3 => Some(FileKind::MetaMonodix),
+            4 => Some(FileKind::MetaBidix),
+            5 => Some(FileKind::Postdix),
+            6 => Some(FileKind::Rlx),
+            7 => Some(FileKind::Transfer),
+            8 => Some(FileKind::Lexc),
+            9 => Some(FileKind::Twol),
+            _ => None,
+        })
 }
