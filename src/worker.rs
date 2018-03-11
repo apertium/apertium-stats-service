@@ -8,16 +8,11 @@ extern crate tokio_core;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process::{Command, Output};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::str;
 
 use chrono::{NaiveDateTime, Utc};
-use regex::RegexSet;
-use self::futures::{Future, Stream};
-use self::hyper::Client;
-use self::tokio_core::reactor::Core;
-use self::hyper_tls::HttpsConnector;
 use self::quick_xml::reader::Reader;
 use self::quick_xml::events::Event;
 use self::quick_xml::events::attributes::Attribute;
@@ -25,13 +20,13 @@ use self::diesel::prelude::*;
 
 use super::models::NewEntry;
 use super::schema::entries;
+use super::stats::{get_file_kind, get_file_stats, FileKind};
 
 // TODO: add logging
 
 #[derive(Serialize, Clone)]
 pub struct Task {
-    // TODO: make this full of refs?
-    pub kind: String,
+    pub kind: FileKind,
     pub path: String,
     pub revision: i32,
     pub created: NaiveDateTime,
@@ -40,23 +35,7 @@ type Tasks = Vec<Task>; // TODO: make this a set?
 
 pub struct Worker {
     pool: super::db::Pool,
-    current_tasks: Mutex<HashMap<String, Tasks>>, // TODO: make this full of refs instead?
-}
-
-fn get_file_kind(file_name: &str) -> Option<&str> {
-    lazy_static! {
-        static ref RE: RegexSet = RegexSet::new(&[
-            format!(r"^apertium-({re})-({re})\.({re})-({re})\.dix$", re=super::LANG_CODE_RE),
-        ]).unwrap();
-    }
-
-    let matches = RE.matches(file_name);
-    if matches.matched(0) {
-        Some("bidix") // TODO: change this to enum
-    } else {
-        // TODO: implement the rest
-        None
-    }
+    current_tasks: Arc<Mutex<HashMap<String, Tasks>>>,
 }
 
 fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
@@ -74,11 +53,11 @@ fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
         {
             let xml = String::from_utf8_lossy(&stdout);
             let mut reader = Reader::from_str(&xml);
+            let mut buf = Vec::new();
+
             let mut files = Vec::new();
             let mut in_name = false;
             let mut name = String::new();
-
-            let mut buf = Vec::new();
 
             loop {
                 match reader.read_event(&mut buf) {
@@ -122,77 +101,55 @@ impl Worker {
     pub fn new(pool: super::db::Pool) -> Worker {
         Worker {
             pool,
-            current_tasks: Mutex::new(HashMap::new()),
+            current_tasks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     fn launch_task(&self, package_name: &str, task: &Task) {
-        // TODO: handle removal of task on failure
-        let url = format!(
-            "{}/{}/master/{}",
-            super::ORGANIZATION_RAW_ROOT,
-            package_name,
-            task.path
-        ).parse()
-            .unwrap();
+        let current_tasks_guard = self.current_tasks.clone();
         let pool = self.pool.clone();
         let task = task.clone();
         let package_name = package_name.to_string();
 
         thread::spawn(move || {
-            let mut core = Core::new().unwrap(); // TODO: make either of these instance variables (or static?)
-            let client = Client::configure()
-                .connector(HttpsConnector::new(4, &core.handle()).unwrap())
-                .build(&core.handle());
-            let work = client.get(url).and_then(|response| {
-                response.body().concat2().and_then(move |body| {
-                    let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
-
-                    let mut count = 0;
-                    let mut buf = Vec::new();
-                    let mut in_section = false;
-
-                    // TODO: match actions on task.kind
-                    loop {
-                        match reader.read_event(&mut buf) {
-                            Ok(Event::Start(ref e)) if e.name() == b"section" => in_section = true,
-                            Ok(Event::Start(ref e)) if in_section && e.name() == b"e" => count += 1,
-                            Ok(Event::End(ref e)) if e.name() == b"section" => in_section = false,
-                            Ok(Event::Eof) => break,
-                            Err(e) => {
-                                panic!("Error at position {}: {:?}", reader.buffer_position(), e)
-                            }
-                            _ => (),
-                        }
-                        buf.clear();
-                    }
-
-                    let conn = pool.get().unwrap();
-                    let new_entry = NewEntry {
+            // TODO: log a failure
+            if let Ok(stats) = get_file_stats(&task.path, &package_name, &task.kind) {
+                let conn = pool.get().unwrap();
+                let new_entries = stats
+                    .iter()
+                    .map(|&(ref kind, ref value)| NewEntry {
                         name: &package_name,
-                        created: &Utc::now().naive_utc(),
+                        created: Utc::now().naive_utc(),
                         requested: &task.created,
                         path: &task.path,
-                        kind: &task.kind,
-                        value: &count.to_string(),
+                        kind: kind.to_string().to_lowercase(),
+                        value: value.clone(),
                         revision: &task.revision,
-                    };
-                    diesel::insert_into(entries::table)
-                        .values(&new_entry)
-                        .execute(&*conn)
-                        .unwrap();
+                    })
+                    .collect::<Vec<_>>();
+                diesel::insert_into(entries::table)
+                    .values(&new_entries)
+                    .execute(&*conn)
+                    .unwrap();
+            };
 
-                    Ok(())
-                })
-            });
-            core.run(work).unwrap();
+            let mut current_tasks = current_tasks_guard.lock().unwrap();
+            if let Entry::Occupied(ref mut occupied) = current_tasks.entry(package_name) {
+                if let Some(position) = occupied.get().iter().position(
+                    |&Task {
+                         ref kind, ref path, ..
+                     }| { kind == &task.kind && path == &task.path },
+                ) {
+                    occupied.get_mut().remove(position); // TODO: clear if empty
+                }
+            }
         });
     }
 
     pub fn launch_tasks(
         &self,
         name: &str,
-        maybe_kind: Option<&str>,
+        maybe_kind: Option<&FileKind>,
     ) -> Result<(Tasks, Tasks), String> {
         list_files(name).and_then(|files| {
             let mut current_tasks = self.current_tasks.lock().unwrap();
@@ -202,7 +159,7 @@ impl Worker {
                 .iter()
                 .filter_map(|&(ref file, revision)| {
                     get_file_kind(file).and_then(|file_kind| {
-                        let requested_kind = maybe_kind.map_or(true, |kind| kind == file_kind);
+                        let requested_kind = maybe_kind.map_or(true, |kind| kind == &file_kind);
                         let in_progress = match current_package_tasks {
                             Entry::Occupied(ref occupied) => occupied
                                 .get()
@@ -211,7 +168,7 @@ impl Worker {
                                     |&&Task {
                                          ref kind, ref path, ..
                                      }| {
-                                        kind == file_kind && path == file
+                                        kind == &file_kind && path == file
                                     },
                                 )
                                 .is_some(),
@@ -219,7 +176,7 @@ impl Worker {
                         };
                         if requested_kind && !in_progress {
                             Some(Task {
-                                kind: file_kind.to_string(),
+                                kind: file_kind.clone(),
                                 path: file.to_string(),
                                 created: Utc::now().naive_utc(),
                                 revision,

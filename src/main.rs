@@ -4,6 +4,7 @@
 mod db;
 mod models;
 mod schema;
+mod stats;
 mod worker;
 
 extern crate chrono;
@@ -173,6 +174,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
 
 #[get("/<name>/<kind>")]
 fn get_specific_stats(name: String, kind: String) -> String {
+    // TODO: validate kind
     format!("{}: {}", name, kind)
     // TODO: implement this
 }
