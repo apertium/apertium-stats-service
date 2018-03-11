@@ -33,10 +33,14 @@ impl fmt::Display for StatKind {
 #[allow(dead_code)]
 #[derive(PartialEq, Clone, Debug, Serialize)]
 pub enum FileKind {
-    Monodix,
-    Bidix,
-    MetaMonodix,
-    MetaBidix,
+    Monodix, // emits Stems, Paradigms
+    Bidix, // emits Stem
+    MetaMonodix, // emits Stems, Paradigms
+    MetaBidix, // emits Stems
+    Postdix,
+    Rlx,
+    Transfer,
+    Lexc,
 }
 
 impl fmt::Display for FileKind {
@@ -153,6 +157,7 @@ pub fn get_file_stats(
 
                     Ok(vec![(StatKind::Stems, e_count.to_string())])
                 }
+                _ => Ok(vec![])
             })
     });
 
@@ -167,21 +172,23 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
             format!(r"^apertium-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}-{re}\.{re}-{re}\.metadix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}-{re}\.post-{re}\.dix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}-{re}\.{re}-{re}\.rlx$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}\.{re}\.lexc$", re=super::LANG_CODE_RE),
         ]).unwrap();
     }
 
     let matches = RE.matches(file_name.trim_right_matches(".xml"));
-    if matches.matched(0) {
-        // TODO: convert this into a find?
-        Some(FileKind::Monodix)
-    } else if matches.matched(1) {
-        Some(FileKind::Bidix)
-    } else if matches.matched(2) || matches.matched(3) {
-        Some(FileKind::MetaMonodix)
-    } else if matches.matched(4) {
-        Some(FileKind::MetaBidix)
-    } else {
-        // TODO: implement the rest
-        None
-    }
+    matches.into_iter().collect::<Vec<_>>().pop().and_then(|i| match i {
+        0 => Some(FileKind::Monodix),
+        1 => Some(FileKind::Bidix),
+        2 | 3 => Some(FileKind::MetaMonodix),
+        4 => Some(FileKind::MetaBidix),
+        5 => Some(FileKind::Postdix),
+        6 => Some(FileKind::Rlx),
+        7 => Some(FileKind::Transfer),
+        8 => Some(FileKind::Lexc),
+        _ => None
+    })
 }

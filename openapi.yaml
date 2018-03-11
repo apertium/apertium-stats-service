@@ -107,6 +107,10 @@ components:
         - Bidix
         - MetaMonodix
         - MetaBidix
+        - Postdix
+        - Rlx
+        - Transfer
+        - Lexc
     Stats:
       type: array
       items:
