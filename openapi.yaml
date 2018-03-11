@@ -24,7 +24,7 @@ paths:
       summary: Returns statistics for the specified package
       responses:
         '200':
-          description: Statistics
+          description: Package statistics
           content:
             application/json:
               schema:
@@ -34,7 +34,44 @@ paths:
                     type: string
                   stats:
                     $ref: '#/components/schemas/Stats'
-        # TODO: rest of the responses
+        '202':
+          description: Package statistics in progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    example: apertium-pl-dsb
+                    type: string
+                  in_progress:
+                    $ref: '#/components/schemas/StatsInProgress'
+        '429':
+          description: Package statistics already in progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    example: apertium-pl-dsb
+                    type: string
+                  in_progress:
+                    $ref: '#/components/schemas/StatsInProgress'
+        '400':
+          description: Bad request error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Package not found error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
   # TODO: rest of the paths
 components:
   parameters:
@@ -47,6 +84,15 @@ components:
       schema:
         type: string
   schemas:
+    Error:
+      type: object
+      properties:
+        name:
+          example: apertium-pl-dsb
+          type: string
+        error:
+          example: No recognized files
+          type: string
     StatKind:
       type: string
       enum:
@@ -54,6 +100,13 @@ components:
         - paradigms
         - rules
         - macros
+    FileKind:
+      type: string
+      enum:
+        - Monodix
+        - Bidix
+        - MetaMonodix
+        - MetaBidix
     Stats:
       type: array
       items:
@@ -74,3 +127,25 @@ components:
           value:
             type: string
             example: 366
+          created:
+            type: string
+            format:	date-time
+          requested:
+            type: string
+            format:	date-time
+    StatsInProgress:
+      type: array
+      items:
+        type: object
+        properties:
+          kind:
+            $ref: '#components/schemas/FileKind'
+          created:
+            type: string
+            format:	date-time
+          path:
+            type: string
+            example: apertium-pl-dsb.pl-dsb.dix
+          revision:
+            type: string
+            example: 13
