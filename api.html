@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Apertium Stats Service</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="author" content="Sushain K. Cherivirala">
+    <link rel="shortcut icon" href="https://www.apertium.org/img/favicon.ico">
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@3.12.1/swagger-ui-bundle.js" integrity="sha384-Hz+2kIjfa/8qEhZqOdUZIrx6NgHeBpbvB/m/Bx1WkDeHG+hX9GNLPFf4dcbF9ZpI" crossorigin="anonymous"></script>
+    <script type="text/javascript">
+      const ui = SwaggerUIBundle({
+        spec: {
+          title: 'Apertium Stats Service',
+          version: '0.1.0',
+          // TODO: finish this
+        },
+        dom_id: '#root',
+        presets: [
+          SwaggerUIBundle.presets.apis,
+        ],
+      });
+    </script>
+  </body>
+</html>

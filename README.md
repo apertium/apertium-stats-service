@@ -1,7 +1,17 @@
 Apertium Stats Service
 ======================
 
+[![Build Status](https://travis-ci.org/sushain97/apertium-stats-service.png?branch=master)](https://travis-ci.org/sushain97/apertium-stats-service)
+
+Rust web service that enables the efficient compilation and distribution
+of statistics regarding Apertium packages via a RESTful API.
+
 Usage
+
+-----
+See `api.html` for the Swagger UI representation of the OpenAPI 3.0 Spec.
+
+Running
 ------
 
 Build with `cargo build` and run with `cargo run`.
