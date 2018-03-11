@@ -125,7 +125,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
                             JsonResult::Err(
                                 Some(Json(json!({
                                 "name": normalized_name,
-                                "error": "No statistics could be found",
+                                "error": "No recognized files",
                             }))),
                                 Status::NotFound,
                             )
@@ -149,6 +149,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
             } else {
                 let maybe_entries = entries_db::table
                     .filter(entries_db::name.eq(name))
+                    // .filter(sql("TRUE GROUP BY kind, path")) // TODO: fix this to group by kind and path
                     .group_by(entries_db::kind)
                     .order(entries_db::created)
                     .load::<models::Entry>(&*conn);

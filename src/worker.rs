@@ -42,7 +42,7 @@ fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
-        .arg("--recursive")
+        // .arg("--recursive") // TODO: make this a query param?
         .arg(format!("{}/{}/trunk", super::ORGANIZATION_ROOT, name))
         .output();
 
@@ -134,13 +134,16 @@ impl Worker {
             };
 
             let mut current_tasks = current_tasks_guard.lock().unwrap();
-            if let Entry::Occupied(ref mut occupied) = current_tasks.entry(package_name) {
+            if let Entry::Occupied(mut occupied) = current_tasks.entry(package_name) {
                 if let Some(position) = occupied.get().iter().position(
                     |&Task {
                          ref kind, ref path, ..
                      }| { kind == &task.kind && path == &task.path },
                 ) {
-                    occupied.get_mut().remove(position); // TODO: clear if empty
+                    occupied.get_mut().remove(position);
+                    if occupied.get().is_empty() {
+                        occupied.remove_entry();
+                    }
                 }
             }
         });

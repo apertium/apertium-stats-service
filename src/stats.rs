@@ -35,6 +35,8 @@ impl fmt::Display for StatKind {
 pub enum FileKind {
     Monodix,
     Bidix,
+    MetaMonodix,
+    MetaBidix,
 }
 
 impl fmt::Display for FileKind {
@@ -49,6 +51,8 @@ impl FileKind {
         match s.to_lowercase().as_ref() {
             "monodix" => Ok(FileKind::Monodix),
             "bidix" => Ok(FileKind::Bidix),
+            "metamonodix" => Ok(FileKind::MetaMonodix),
+            "metabidix" => Ok(FileKind::MetaBidix),
             _ => Err(format!("Invalid file kind: {}", s)),
         }
     }
@@ -77,7 +81,7 @@ pub fn get_file_stats(
             .body()
             .concat2()
             .and_then(move |body| match file_kind {
-                &FileKind::Monodix => {
+                &FileKind::Monodix | &FileKind::MetaMonodix => {
                     let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
                     let mut buf = Vec::new();
 
@@ -100,7 +104,8 @@ pub fn get_file_stats(
                             Ok(Event::End(ref e)) if e.name() == b"pardefs" => in_pardefs = false,
                             Ok(Event::Eof) => break,
                             Err(e) => {
-                                panic!("Error at position {}: {:?}", reader.buffer_position(), e)
+                                println!("Error at position {} in {}: {:?}", reader.buffer_position(), file_path, e); // TODO: log instead
+                                return Ok(vec![]); // TODO: pass up Err instead
                             }
                             _ => (),
                         }
@@ -112,7 +117,7 @@ pub fn get_file_stats(
                         (StatKind::Paradigms, pardef_count.to_string()),
                     ])
                 }
-                &FileKind::Bidix => {
+                &FileKind::Bidix | &FileKind::MetaBidix  => {
                     let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
                     let mut buf = Vec::new();
 
@@ -128,7 +133,8 @@ pub fn get_file_stats(
                             Ok(Event::End(ref e)) if e.name() == b"section" => in_section = false,
                             Ok(Event::Eof) => break,
                             Err(e) => {
-                                panic!("Error at position {}: {:?}", reader.buffer_position(), e)
+                                println!("Error at position {} in {}: {:?}", reader.buffer_position(), file_path, e); // TODO: log instead
+                                return Ok(vec![]); // TODO: pass up Err instead
                             }
                             _ => (),
                         }
@@ -146,16 +152,23 @@ pub fn get_file_stats(
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
     lazy_static! {
         static ref RE: RegexSet = RegexSet::new(&[
-            format!(r"^apertium-({re})\.({re})\.dix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-({re})-({re})\.({re})-({re})\.dix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}\.{re}\.dix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}-{re}\.{re}-{re}\.dix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}-{re}\.{re}-{re}\.metadix$", re=super::LANG_CODE_RE),
         ]).unwrap();
     }
 
-    let matches = RE.matches(file_name);
-    if matches.matched(0) {
+    let matches = RE.matches(file_name.trim_right_matches(".xml"));
+    if matches.matched(0) { // TODO: convert this into a find?
         Some(FileKind::Monodix)
     } else if matches.matched(1) {
         Some(FileKind::Bidix)
+    } else if matches.matched(2) || matches.matched(3) {
+        Some(FileKind::MetaMonodix)
+    } else if matches.matched(4) {
+        Some(FileKind::MetaBidix)
     } else {
         // TODO: implement the rest
         None
