@@ -3,8 +3,8 @@ Apertium Stats Service
 
 [![Build Status](https://travis-ci.org/sushain97/apertium-stats-service.png?branch=master)](https://travis-ci.org/sushain97/apertium-stats-service)
 
-Rust web service that enables the efficient parallel compilation and
-distribution of statistics regarding Apertium packages via a RESTful API.
+Stateful Rust web service that enables the efficient parallel compilation
+and distribution of statistics regarding Apertium packages via a RESTful API.
 
 Usage
 -----

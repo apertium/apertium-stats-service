@@ -3,8 +3,8 @@ openapi: '3.0'
 info:
   title: Apertium Stats Service
   version: '0.1.0'
-  description: Rust web service that enables the efficient parallel compilation and
-    distribution of statistics regarding Apertium packages via a RESTful API.
+  description: Stateful Rust web service that enables the efficient parallel compilation
+    and distribution of statistics regarding Apertium packages via a RESTful API.
 servers:
   - url: http://localhost:8000
     description: Development
