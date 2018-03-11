@@ -6,7 +6,9 @@ use super::schema::entries;
 
 #[derive(Queryable, Serialize)]
 pub struct Entry {
+    #[serde(skip_serializing)] // TODO: this does not work
     pub id: i32,
+
     pub requested: NaiveDateTime,
     pub created: NaiveDateTime,
     pub name: String,

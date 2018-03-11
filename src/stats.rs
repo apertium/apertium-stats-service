@@ -73,8 +73,10 @@ pub fn get_file_stats(
         .build(&core.handle());
 
     let work = client.get(url).and_then(|response| {
-        response.body().concat2().and_then(move |body| {
-            match file_kind {
+        response
+            .body()
+            .concat2()
+            .and_then(move |body| match file_kind {
                 &FileKind::Monodix => {
                     let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
                     let mut buf = Vec::new();
@@ -109,7 +111,7 @@ pub fn get_file_stats(
                         (StatKind::Stems, e_count.to_string()),
                         (StatKind::Paradigms, pardef_count.to_string()),
                     ])
-                },
+                }
                 &FileKind::Bidix => {
                     let mut reader = Reader::from_str(&str::from_utf8(&*body).unwrap());
                     let mut buf = Vec::new();
@@ -133,12 +135,9 @@ pub fn get_file_stats(
                         buf.clear();
                     }
 
-                    Ok(vec![
-                        (StatKind::Stems, e_count.to_string()),
-                    ])
-                },
-            }
-        })
+                    Ok(vec![(StatKind::Stems, e_count.to_string())])
+                }
+            })
     });
 
     core.run(work)

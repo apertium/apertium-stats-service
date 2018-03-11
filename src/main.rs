@@ -10,6 +10,7 @@ mod worker;
 extern crate chrono;
 #[macro_use]
 extern crate diesel;
+extern crate dotenv;
 #[macro_use]
 extern crate lazy_static;
 extern crate r2d2_diesel;
@@ -21,6 +22,9 @@ extern crate rocket_contrib;
 extern crate serde_derive;
 extern crate serde_json;
 
+use std::env;
+
+use dotenv::dotenv;
 use regex::RegexSet;
 use rocket_contrib::{Json, Value};
 use rocket::Request;
@@ -36,7 +40,6 @@ use worker::Worker;
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
-const DATABASE_URL: &str = "db.sqlite";
 
 fn normalize_name(name: &str) -> String {
     if name.starts_with("apertium-") {
@@ -192,7 +195,10 @@ fn calculate_specific_stats(name: String, kind: String) -> String {
 }
 
 fn main() {
-    let pool = db::init_pool(DATABASE_URL);
+    dotenv().ok();
+
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let pool = db::init_pool(&database_url);
     let worker = Worker::new(pool.clone());
 
     rocket::ignite()
