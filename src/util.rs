@@ -1,18 +1,18 @@
+use std::ops::Try;
+
 use regex::RegexSet;
 use rocket_contrib::{Json, Value};
 use rocket::http::Status;
 use rocket::response::{Responder, Response};
 use rocket::Request;
 
-pub fn normalize_name(name: &str) -> String {
-    if name.starts_with("apertium-") {
+pub fn normalize_name(name: &str) -> Result<String, String> {
+    let normalized_name = if name.starts_with("apertium-") {
         name.to_string()
     } else {
         format!("apertium-{}", name)
-    }
-}
+    };
 
-pub fn is_valid_name(name: &str) -> bool {
     lazy_static! {
         static ref RE: RegexSet = RegexSet::new(&[
             format!(r"^apertium-({re})$", re=super::LANG_CODE_RE),
@@ -20,12 +20,36 @@ pub fn is_valid_name(name: &str) -> bool {
         ]).unwrap();
     }
 
-    RE.matches(name).matched_any()
+    if RE.matches(&normalized_name).matched_any() {
+        Ok(normalized_name)
+    } else {
+        Err(format!("Invalid package name: {}", name))
+    }
 }
 
 pub enum JsonResult {
-    Err(Option<Json<Value>>, Status),
     Ok(Json<Value>),
+    Err(Option<Json<Value>>, Status),
+}
+
+impl Try for JsonResult {
+    type Ok = Json<Value>;
+    type Error = (Option<Json<Value>>, Status);
+
+    fn from_ok(value: Self::Ok) -> Self {
+        JsonResult::Ok(value)
+    }
+
+    fn from_error((value, status): Self::Error) -> Self {
+        JsonResult::Err(value, status)
+    }
+
+    fn into_result(self) -> Result<Self::Ok, Self::Error> {
+        match self {
+            JsonResult::Ok(value) => Ok(value),
+            JsonResult::Err(value, status) => Err((value, status)),
+        }
+    }
 }
 
 impl<'r> Responder<'r> for JsonResult {

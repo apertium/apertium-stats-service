@@ -1,4 +1,5 @@
 #![feature(plugin)]
+#![feature(try_trait)]
 #![plugin(rocket_codegen)]
 
 mod db;
@@ -37,7 +38,7 @@ use self::diesel::prelude::*;
 use db::DbConn;
 use schema::entries as entries_db;
 use worker::Worker;
-use util::{is_valid_name, normalize_name, JsonResult};
+use util::{normalize_name, JsonResult};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
@@ -63,78 +64,71 @@ fn index() -> &'static str {
 
 #[get("/<name>")]
 fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
-    let normalized_name = normalize_name(&name);
-    if is_valid_name(&normalized_name) {
-        let maybe_entries = entries_db::table
-            .filter(entries_db::name.eq(&name))
-            .order(entries_db::created)
-            .limit(1)
-            .load::<models::Entry>(&*conn);
-        if let Ok(entries) = maybe_entries {
-            if entries.is_empty() {
-                if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
-                    JsonResult::Err(
-                        Some(Json(json!({
-                        "name": normalized_name,
-                        "in_progress": in_progress_tasks,
-                    }))),
-                        Status::TooManyRequests,
-                    )
-                } else {
-                    match worker.launch_tasks(&name, None) {
-                        Ok((ref new_tasks, ref _in_progress_tasks)) if new_tasks.is_empty() => {
-                            JsonResult::Err(
-                                Some(Json(json!({
-                                "name": normalized_name,
-                                "error": "No recognized files",
-                            }))),
-                                Status::NotFound,
-                            )
-                        }
-                        Ok((ref _new_tasks, ref in_progress_tasks)) => JsonResult::Err(
-                            Some(Json(json!({
-                                "name": normalized_name,
-                                "in_progress": in_progress_tasks,
-                            }))),
-                            Status::Accepted,
-                        ),
-                        Err(error) => JsonResult::Err(
-                            Some(Json(json!({
-                                "name": normalized_name,
-                                "error": error,
-                            }))),
-                            Status::BadRequest,
-                        ),
-                    }
-                }
-            } else {
-                // TODO: also send in_progress (update spec)
-                let maybe_entries = entries_db::table
-                    .filter(entries_db::name.eq(&name))
-                    .filter(sql("1 GROUP BY kind, path")) // HACK: Diesel has no real group_by :(
-                    .order(entries_db::created)
-                    .load::<models::Entry>(&*conn);
-                if let Ok(entries) = maybe_entries {
-                    JsonResult::Ok(Json(json!({
-                        "name": normalized_name,
-                        "stats": entries,
-                        "in_progress": worker.get_tasks_in_progress(&name).unwrap_or(vec![]),
-                    })))
-                } else {
-                    JsonResult::Err(None, Status::InternalServerError)
-                }
-            }
-        } else {
-            JsonResult::Err(None, Status::InternalServerError)
-        }
-    } else {
-        JsonResult::Err(
+    let normalized_name = normalize_name(&name).map_err(|err| {
+        (
             Some(Json(json!({
-            "name": normalized_name,
-            "error": format!("Invalid package format: {}", name),
-        }))),
+                "name": name,
+                "error": err,
+            }))),
             Status::BadRequest,
         )
+    })?;
+
+    let entries: Vec<models::Entry> = entries_db::table
+        .filter(entries_db::name.eq(&name))
+        .order(entries_db::created)
+        .limit(1)
+        .load::<models::Entry>(&*conn)
+        .map_err(|_| (None, Status::InternalServerError))?;
+
+    if entries.is_empty() {
+        if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
+            JsonResult::Err(
+                Some(Json(json!({
+                    "name": normalized_name,
+                    "in_progress": in_progress_tasks,
+                }))),
+                Status::TooManyRequests,
+            )
+        } else {
+            match worker.launch_tasks(&name, None) {
+                Ok((ref new_tasks, ref _in_progress_tasks)) if new_tasks.is_empty() => {
+                    JsonResult::Err(
+                        Some(Json(json!({
+                            "name": normalized_name,
+                            "error": "No recognized files",
+                        }))),
+                        Status::NotFound,
+                    )
+                }
+                Ok((ref _new_tasks, ref in_progress_tasks)) => JsonResult::Err(
+                    Some(Json(json!({
+                            "name": normalized_name,
+                            "in_progress": in_progress_tasks,
+                        }))),
+                    Status::Accepted,
+                ),
+                Err(error) => JsonResult::Err(
+                    Some(Json(json!({
+                            "name": normalized_name,
+                            "error": error,
+                        }))),
+                    Status::BadRequest,
+                ),
+            }
+        }
+    } else {
+        let entries = entries_db::table
+            .filter(entries_db::name.eq(&name))
+            .filter(sql("1 GROUP BY kind, path")) // HACK: Diesel has no real group_by :(
+            .order(entries_db::created)
+            .load::<models::Entry>(&*conn)
+            .map_err(|_| (None, Status::InternalServerError))?;
+        JsonResult::Ok(Json(json!({
+            "name": normalized_name,
+            "stats": entries,
+            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or(vec![]),
+        })))
     }
 }
 
