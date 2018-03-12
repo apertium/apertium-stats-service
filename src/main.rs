@@ -151,8 +151,9 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
                     }
                 }
             } else {
+                // TODO: also send in_progress (update spec)
                 let maybe_entries = entries_db::table
-                    .filter(entries_db::name.eq(name))
+                    .filter(entries_db::name.eq(&name))
                     .filter(sql("1 GROUP BY kind, path")) // HACK: Diesel has no real group_by :(
                     .order(entries_db::created)
                     .load::<models::Entry>(&*conn);
@@ -160,6 +161,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
                     JsonResult::Ok(Json(json!({
                         "name": normalized_name,
                         "stats": entries,
+                        "in_progress": worker.get_tasks_in_progress(&name).unwrap_or(vec![]),
                     })))
                 } else {
                     JsonResult::Err(None, Status::InternalServerError)

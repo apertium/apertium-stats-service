@@ -112,25 +112,32 @@ impl Worker {
         let package_name = package_name.to_string();
 
         thread::spawn(move || {
-            // TODO: log a failure
-            if let Ok(stats) = get_file_stats(&task.path, &package_name, &task.kind) {
-                let conn = pool.get().unwrap();
-                let new_entries = stats
-                    .iter()
-                    .map(|&(ref kind, ref value)| NewEntry {
-                        name: &package_name,
-                        created: Utc::now().naive_utc(),
-                        requested: &task.created,
-                        path: &task.path,
-                        kind: kind.to_string().to_lowercase(),
-                        value: value.clone(),
-                        revision: &task.revision,
-                    })
-                    .collect::<Vec<_>>();
-                diesel::insert_into(entries::table)
-                    .values(&new_entries)
-                    .execute(&*conn)
-                    .unwrap();
+            match get_file_stats(&task.path, &package_name, &task.kind) {
+                Ok(stats) => {
+                    let conn = pool.get().unwrap();
+                    let new_entries = stats
+                        .iter()
+                        .map(|&(ref kind, ref value)| NewEntry {
+                            name: &package_name,
+                            created: Utc::now().naive_utc(),
+                            requested: &task.created,
+                            path: &task.path,
+                            kind: kind.to_string().to_lowercase(),
+                            value: value.clone(),
+                            revision: &task.revision,
+                        })
+                        .collect::<Vec<_>>();
+                    diesel::insert_into(entries::table)
+                        .values(&new_entries)
+                        .execute(&*conn)
+                        .unwrap();
+                }
+                Err(err) => {
+                    println!(
+                        "Error executing task for {}/{}: {:?}",
+                        &package_name, &task.path, err
+                    ); // TODO: log instead
+                }
             };
 
             let mut current_tasks = current_tasks_guard.lock().unwrap();

@@ -34,6 +34,8 @@ paths:
                     type: string
                   stats:
                     $ref: '#/components/schemas/Stats'
+                  in_progress:
+                    $ref: '#/components/schemas/StatsInProgress'
         '202':
           description: Package statistics in progress
           content:
