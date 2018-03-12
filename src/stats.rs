@@ -42,7 +42,7 @@ pub enum FileKind {
     MetaMonodix, // emits Stems, Paradigms
     MetaBidix,   // emits Stems
     Postdix,
-    Rlx, // emits Rules
+    Rlx,      // emits Rules
     Transfer, // emits Rules, Macros
     Lexc,
     Twol,

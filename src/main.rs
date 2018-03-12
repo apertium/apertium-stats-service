@@ -5,6 +5,7 @@ mod db;
 mod models;
 mod schema;
 mod stats;
+mod util;
 mod worker;
 
 extern crate chrono;
@@ -27,64 +28,20 @@ use std::env;
 
 use diesel::dsl::sql;
 use dotenv::dotenv;
-use regex::RegexSet;
-use rocket_contrib::{Json, Value};
+use rocket_contrib::Json;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use rocket::http::{Method, Status};
-use rocket::Request;
-use rocket::response::{Responder, Response};
 use rocket::State;
 use self::diesel::prelude::*;
 
 use db::DbConn;
 use schema::entries as entries_db;
 use worker::Worker;
+use util::{is_valid_name, normalize_name, JsonResult};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
-
-fn normalize_name(name: &str) -> String {
-    if name.starts_with("apertium-") {
-        name.to_owned()
-    } else {
-        format!("apertium-{}", name)
-    }
-}
-
-fn match_name(name: &str) -> bool {
-    lazy_static! {
-        static ref RE: RegexSet = RegexSet::new(&[
-            format!(r"^apertium-({re})$", re=LANG_CODE_RE),
-            format!(r"^apertium-({re})-({re})$", re=LANG_CODE_RE),
-        ]).unwrap();
-    }
-
-    RE.matches(name).matched_any()
-}
-
-enum JsonResult {
-    Err(Option<Json<Value>>, Status),
-    Ok(Json<Value>),
-}
-
-impl<'r> Responder<'r> for JsonResult {
-    fn respond_to(self, req: &Request) -> Result<Response<'r>, Status> {
-        match self {
-            JsonResult::Ok(value) => value.respond_to(req),
-            JsonResult::Err(maybe_value, status) => match maybe_value {
-                Some(value) => match value.respond_to(req) {
-                    Ok(mut response) => {
-                        response.set_status(status);
-                        Ok(response)
-                    }
-                    err => err,
-                },
-                None => Err(status),
-            },
-        }
-    }
-}
 
 // TODO: allow as of request
 
@@ -107,7 +64,7 @@ fn index() -> &'static str {
 #[get("/<name>")]
 fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
     let normalized_name = normalize_name(&name);
-    if match_name(&normalized_name) {
+    if is_valid_name(&normalized_name) {
         let maybe_entries = entries_db::table
             .filter(entries_db::name.eq(&name))
             .order(entries_db::created)
