@@ -97,10 +97,10 @@ components:
     StatKind:
       type: string
       enum:
-        - stems
-        - paradigms
-        - rules
-        - macros
+        - Stems
+        - Paradigms
+        - Rules
+        - Macros
     FileKind:
       type: string
       enum:
@@ -127,9 +127,12 @@ components:
           revision:
             type: string
             example: 13
-          kind:
-            $ref: '#components/schemas/StatKind'
+          file_kind:
+            $ref: '#components/schemas/FileKind'
             example: stems
+          stat_kind:
+            $ref: '#components/schemas/StatKind'
+            example: rlx
           value:
             type: string
             example: 366

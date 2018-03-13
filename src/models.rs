@@ -14,7 +14,8 @@ pub struct Entry {
     pub name: String,
     pub revision: i32,
     pub path: String,
-    pub kind: String,
+    pub file_kind: String,
+    pub stat_kind: String,
     pub value: String,
 }
 
@@ -26,6 +27,7 @@ pub struct NewEntry<'a> {
     pub name: &'a str,
     pub revision: &'a i32,
     pub path: &'a str,
-    pub kind: String,
+    pub file_kind: String,
+    pub stat_kind: String,
     pub value: String,
 }

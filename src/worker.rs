@@ -116,7 +116,8 @@ impl Worker {
                             created: Utc::now().naive_utc(),
                             requested: &task.created,
                             path: &task.path,
-                            kind: kind.to_string().to_lowercase(),
+                            stat_kind: kind.to_string(),
+                            file_kind: task.kind.to_string(),
                             value: value.clone(),
                             revision: &task.revision,
                         })

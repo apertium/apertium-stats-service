@@ -6,7 +6,8 @@ table! {
         name -> Text,
         revision -> Integer,
         path -> Text,
-        kind -> Text,
+        file_kind -> Text,
+        stat_kind -> Text,
         value -> Text,
     }
 }

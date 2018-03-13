@@ -1,7 +1,6 @@
 #![feature(plugin)]
 #![feature(try_trait)]
 #![plugin(rocket_codegen)]
-
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
 
@@ -122,7 +121,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
     } else {
         let entries = entries_db::table
             .filter(entries_db::name.eq(&name))
-            .filter(sql("1 GROUP BY kind, path")) // HACK: Diesel has no real group_by :(
+            .filter(sql("1 GROUP BY stat_kind, path")) // HACK: Diesel has no real group_by :(
             .order(entries_db::created)
             .load::<models::Entry>(&*conn)
             .map_err(|_| (None, Status::InternalServerError))?;
