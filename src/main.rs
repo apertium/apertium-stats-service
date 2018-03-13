@@ -50,17 +50,18 @@ pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 #[get("/")]
 fn index() -> &'static str {
     "USAGE
-    GET /apertium-<code1>(-<code2>)
-    retrieves statistics for the specified package
 
-    GET /apertium-<code1>(-<code2>)/<kind>
-    retrieves <kind> statistics for the specified package
+GET /apertium-<code1>(-<code2>)
+retrieves statistics for the specified package
 
-    POST /apertium-<code1>(-<code2>)
-    calculates statistics for the specified package
+GET /apertium-<code1>(-<code2>)/<kind>
+retrieves <kind> statistics for the specified package
 
-    POST /apertium-<code1>(-<code2>)/<kind>
-    calculates <kind> statistics for the specified package"
+POST /apertium-<code1>(-<code2>)
+calculates statistics for the specified package
+
+POST /apertium-<code1>(-<code2>)/<kind>
+calculates <kind> statistics for the specified package"
 }
 
 #[get("/<name>")]

@@ -19,7 +19,6 @@ use self::tempfile::NamedTempFile;
 use self::quick_xml::reader::Reader;
 use self::quick_xml::events::Event;
 
-#[allow(dead_code)]
 #[derive(PartialEq, Clone, Debug)]
 pub enum StatKind {
     Stems,
@@ -34,7 +33,6 @@ impl fmt::Display for StatKind {
     }
 }
 
-#[allow(dead_code)]
 #[derive(PartialEq, Clone, Debug, Serialize)]
 pub enum FileKind {
     Monodix,     // emits Stems, Paradigms
