@@ -101,8 +101,8 @@ pub fn get_file_stats(
                 .body()
                 .concat2()
                 .map_err(StatsError::Hyper)
-                .and_then(move |body| match file_kind {
-                    &FileKind::Monodix | &FileKind::MetaMonodix => {
+                .and_then(move |body| match *file_kind {
+                    FileKind::Monodix | FileKind::MetaMonodix => {
                         let mut reader =
                             Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
                         let mut buf = Vec::new();
@@ -151,7 +151,7 @@ pub fn get_file_stats(
                             (StatKind::Paradigms, pardef_count.to_string()),
                         ])
                     }
-                    &FileKind::Bidix | &FileKind::MetaBidix => {
+                    FileKind::Bidix | FileKind::MetaBidix => {
                         let mut reader =
                             Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
                         let mut buf = Vec::new();
@@ -186,7 +186,7 @@ pub fn get_file_stats(
 
                         Ok(vec![(StatKind::Stems, e_count.to_string())])
                     }
-                    &FileKind::Transfer => {
+                    FileKind::Transfer => {
                         let mut reader =
                             Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
                         let mut buf = Vec::new();
@@ -217,13 +217,13 @@ pub fn get_file_stats(
                             (StatKind::Macros, macro_count.to_string()),
                         ])
                     }
-                    &FileKind::Rlx => {
+                    FileKind::Rlx => {
                         let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
                         rlx_file.write_all(&*body).map_err(StatsError::Io)?;
                         let output = Command::new("cg-comp")
-                            .arg(rlx_file.path().to_str().ok_or(StatsError::CgComp(
-                                "Unable to create temporary file".to_string(),
-                            ))?)
+                            .arg(rlx_file.path().to_str().ok_or_else(|| {
+                                StatsError::CgComp("Unable to create temporary file".to_string())
+                            })?)
                             .arg("/dev/null")
                             .output();
 
@@ -232,7 +232,7 @@ pub fn get_file_stats(
                                 status, ref stderr, ..
                             }) if status.success() =>
                             {
-                                let cg_conv_output = String::from_utf8_lossy(&stderr);
+                                let cg_conv_output = String::from_utf8_lossy(stderr);
                                 lazy_static! {
                                     static ref RE: Regex = Regex::new(r"(\w+): (\d+)").unwrap();
                                 }
@@ -248,7 +248,7 @@ pub fn get_file_stats(
                                 )))
                             }
                             Ok(Output { ref stderr, .. }) => Err(StatsError::CgComp(
-                                String::from_utf8_lossy(&stderr).to_string(),
+                                String::from_utf8_lossy(stderr).to_string(),
                             )),
                             Err(err) => Err(StatsError::Io(err)),
                         }
@@ -274,7 +274,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
             format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}\.{re}\.lexc$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}-{re}\.{re}\.twol$", re=super::LANG_CODE_RE),
-        ]).size_limit(50000000).build().unwrap();
+        ]).size_limit(50_000_000).build().unwrap();
     }
 
     let matches = RE.matches(file_name.trim_right_matches(".xml"));

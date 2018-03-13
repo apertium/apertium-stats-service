@@ -1,3 +1,9 @@
 language: rust
 rust:
   - nightly
+cache: cargo
+install:
+  - cargo install clippy
+script:
+  - cargo clippy --verbose
+  - cargo test --verbose

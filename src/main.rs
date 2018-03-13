@@ -2,6 +2,9 @@
 #![feature(try_trait)]
 #![plugin(rocket_codegen)]
 
+#![deny(clippy)]
+#![allow(needless_pass_by_value)]
+
 mod db;
 mod models;
 mod schema;
@@ -39,7 +42,7 @@ use db::DbConn;
 use schema::entries as entries_db;
 use worker::Worker;
 use util::{normalize_name, JsonResult};
-use stats::{FileKind};
+use stats::FileKind;
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
@@ -126,7 +129,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
         JsonResult::Ok(Json(json!({
             "name": normalized_name,
             "stats": entries,
-            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or(vec![]),
+            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
         })))
     }
 }

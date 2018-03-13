@@ -49,7 +49,7 @@ fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
             status, ref stdout, ..
         }) if status.success() =>
         {
-            let xml = String::from_utf8_lossy(&stdout);
+            let xml = String::from_utf8_lossy(stdout);
             let mut reader = Reader::from_str(&xml);
             let mut buf = Vec::new();
 
@@ -65,11 +65,7 @@ fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
                         if str::from_utf8(key).unwrap() == "revision" {
                             files.push((
                                 name.clone(),
-                                str::from_utf8(&value)
-                                    .unwrap()
-                                    .parse::<i32>()
-                                    .unwrap()
-                                    .clone(),
+                                str::from_utf8(&value).unwrap().parse::<i32>().unwrap(),
                             ));
                             break;
                         }
@@ -169,17 +165,13 @@ impl Worker {
                     get_file_kind(file).and_then(|file_kind| {
                         let requested_kind = maybe_kind.map_or(true, |kind| kind == &file_kind);
                         let in_progress = match current_package_tasks {
-                            Entry::Occupied(ref occupied) => occupied
-                                .get()
-                                .iter()
-                                .find(
-                                    |&&Task {
-                                         ref kind, ref path, ..
-                                     }| {
-                                        kind == &file_kind && path == file
-                                    },
-                                )
-                                .is_some(),
+                            Entry::Occupied(ref occupied) => occupied.get().iter().any(
+                                |&Task {
+                                     ref kind, ref path, ..
+                                 }| {
+                                    kind == &file_kind && path == file
+                                },
+                            ),
                             _ => false,
                         };
                         if requested_kind && !in_progress {
