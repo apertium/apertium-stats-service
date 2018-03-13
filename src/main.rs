@@ -44,8 +44,6 @@ pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
-// TODO: allow as of request
-
 #[get("/")]
 fn index() -> &'static str {
     "USAGE

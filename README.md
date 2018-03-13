@@ -15,7 +15,6 @@ Running
 
 Build with `cargo build` and run with `cargo run`.
 Edit `.env` to set environment parameters.
-TODO: prod instructions
 
 Development
 ----------

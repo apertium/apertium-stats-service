@@ -22,8 +22,6 @@ use super::models::NewEntry;
 use super::schema::entries;
 use super::stats::{get_file_kind, get_file_stats, FileKind};
 
-// TODO: add logging
-
 #[derive(Serialize, Clone)]
 pub struct Task {
     pub kind: FileKind,
@@ -42,7 +40,7 @@ fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
-        // .arg("--recursive") // TODO: make this a query param?
+        // .arg("--recursive")
         .arg(format!("{}/{}/trunk", super::ORGANIZATION_ROOT, name))
         .output();
 

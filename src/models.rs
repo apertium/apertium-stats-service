@@ -6,7 +6,7 @@ use super::schema::entries;
 
 #[derive(Queryable, Serialize)]
 pub struct Entry {
-    #[serde(skip_serializing)] // TODO: this does not work
+    #[serde(skip_serializing)]
     pub id: i32,
 
     pub requested: NaiveDateTime,
@@ -15,7 +15,7 @@ pub struct Entry {
     pub revision: i32,
     pub path: String,
     pub kind: String,
-    pub value: String, // TODO: make this actually JSON
+    pub value: String,
 }
 
 #[derive(Insertable)]
