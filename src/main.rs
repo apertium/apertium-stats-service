@@ -39,6 +39,7 @@ use db::DbConn;
 use schema::entries as entries_db;
 use worker::Worker;
 use util::{normalize_name, JsonResult};
+use stats::{FileKind};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
@@ -131,9 +132,31 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
 }
 
 #[get("/<name>/<kind>")]
-fn get_specific_stats(name: String, kind: String) -> String {
-    // TODO: validate kind
-    format!("{}: {}", name, kind)
+fn get_specific_stats(name: String, kind: String) -> JsonResult {
+    let normalized_name = normalize_name(&name).map_err(|err| {
+        (
+            Some(Json(json!({
+                "name": name,
+                "error": err,
+            }))),
+            Status::BadRequest,
+        )
+    })?;
+
+    let file_kind = FileKind::from_string(&kind).map_err(|err| {
+        (
+            Some(Json(json!({
+                "name": name,
+                "error": err,
+            }))),
+            Status::BadRequest,
+        )
+    });
+
+    JsonResult::Ok(Json(json!({
+        "name": normalized_name,
+        "kind": format!("{:?}", file_kind),
+    })))
     // TODO: implement this
 }
 

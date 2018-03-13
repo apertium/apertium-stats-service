@@ -55,7 +55,6 @@ impl fmt::Display for FileKind {
 }
 
 impl FileKind {
-    #[allow(dead_code)]
     pub fn from_string(s: &str) -> Result<FileKind, String> {
         match s.to_lowercase().as_ref() {
             "monodix" => Ok(FileKind::Monodix),
