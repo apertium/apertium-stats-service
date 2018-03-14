@@ -2,8 +2,10 @@ language: rust
 rust:
   - nightly
 cache: cargo
-install:
-  - cargo install clippy
+before_script:
+  - rustup component add rustfmt-preview
+  - cargo install clippy || echo 'clippy already installed'
 script:
+  - cargo fmt -- --write-mode=diff
   - cargo clippy --verbose
   - cargo test --verbose
