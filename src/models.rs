@@ -26,11 +26,15 @@ impl FileKind {
             "bidix" => Ok(FileKind::Bidix),
             "metamonodix" => Ok(FileKind::MetaMonodix),
             "metabidix" => Ok(FileKind::MetaBidix),
+            "postdix" => Ok(FileKind::Postdix),
+            "rlx" => Ok(FileKind::Rlx),
+            "transfer" => Ok(FileKind::Transfer),
+            "lexc" => Ok(FileKind::Lexc),
+            "twol" => Ok(FileKind::Twol),
             _ => Err(format!("Invalid file kind: {}", s)),
         }
     }
 }
-
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum StatKind {

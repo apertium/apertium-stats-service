@@ -135,7 +135,12 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
 }
 
 #[get("/<name>/<kind>")]
-fn get_specific_stats(name: String, kind: String) -> JsonResult {
+fn get_specific_stats(
+    name: String,
+    kind: String,
+    conn: DbConn,
+    worker: State<Worker>,
+) -> JsonResult {
     let normalized_name = normalize_name(&name).map_err(|err| {
         (
             Some(Json(json!({
@@ -154,13 +159,36 @@ fn get_specific_stats(name: String, kind: String) -> JsonResult {
             }))),
             Status::BadRequest,
         )
-    });
+    })?;
 
-    JsonResult::Ok(Json(json!({
-        "name": normalized_name,
-        "kind": format!("{:?}", file_kind),
-    })))
-    // TODO: implement this
+    let entries: Vec<models::Entry> = entries_db::table
+        .filter(entries_db::name.eq(&name))
+        .filter(entries_db::file_kind.eq(&file_kind))
+        .order(entries_db::created)
+        .limit(1)
+        .load::<models::Entry>(&*conn)
+        .map_err(|_| (None, Status::InternalServerError))?;
+
+    if entries.is_empty() {
+        JsonResult::Ok(Json(json!({
+            "name": normalized_name,
+            "kind": format!("{:?}", file_kind),
+        })))
+        // TODO: implement this
+    } else {
+        let entries = entries_db::table
+            .filter(entries_db::name.eq(&name))
+            .filter(entries_db::file_kind.eq(&file_kind))
+            .filter(sql("1 GROUP BY stat_kind, path")) // HACK: Diesel has no real group_by :(
+            .order(entries_db::created)
+            .load::<models::Entry>(&*conn)
+            .map_err(|_| (None, Status::InternalServerError))?;
+        JsonResult::Ok(Json(json!({
+            "name": normalized_name,
+            "stats": entries,
+            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
+        })))
+    }
 }
 
 #[post("/<name>")]
