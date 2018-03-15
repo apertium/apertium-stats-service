@@ -18,9 +18,9 @@ use self::quick_xml::events::Event;
 use self::quick_xml::events::attributes::Attribute;
 use self::diesel::prelude::*;
 
-use super::models::NewEntry;
+use super::models::{FileKind, NewEntry};
 use super::schema::entries;
-use super::stats::{get_file_kind, get_file_stats, FileKind};
+use super::stats::{get_file_kind, get_file_stats};
 
 #[derive(Serialize, Clone)]
 pub struct Task {
@@ -116,8 +116,8 @@ impl Worker {
                             created: Utc::now().naive_utc(),
                             requested: &task.created,
                             path: &task.path,
-                            stat_kind: kind.to_string(),
-                            file_kind: task.kind.to_string(),
+                            stat_kind: kind.clone(),
+                            file_kind: task.kind.clone(),
                             value: value.clone(),
                             revision: &task.revision,
                         })

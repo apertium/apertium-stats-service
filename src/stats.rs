@@ -6,7 +6,6 @@ extern crate tempfile;
 extern crate tokio_core;
 
 use regex::{Regex, RegexSet, RegexSetBuilder};
-use std::fmt;
 use std::io::{self, Write};
 use std::process::{Command, Output};
 use std::str;
@@ -19,50 +18,7 @@ use self::tempfile::NamedTempFile;
 use self::quick_xml::reader::Reader;
 use self::quick_xml::events::Event;
 
-#[derive(PartialEq, Clone, Debug)]
-pub enum StatKind {
-    Stems,
-    Paradigms,
-    Rules,
-    Macros,
-}
-
-impl fmt::Display for StatKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(PartialEq, Clone, Debug, Serialize)]
-pub enum FileKind {
-    Monodix,     // emits Stems, Paradigms
-    Bidix,       // emits Stem
-    MetaMonodix, // emits Stems, Paradigms
-    MetaBidix,   // emits Stems
-    Postdix,
-    Rlx,      // emits Rules
-    Transfer, // emits Rules, Macros
-    Lexc,
-    Twol,
-}
-
-impl fmt::Display for FileKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl FileKind {
-    pub fn from_string(s: &str) -> Result<FileKind, String> {
-        match s.to_lowercase().as_ref() {
-            "monodix" => Ok(FileKind::Monodix),
-            "bidix" => Ok(FileKind::Bidix),
-            "metamonodix" => Ok(FileKind::MetaMonodix),
-            "metabidix" => Ok(FileKind::MetaBidix),
-            _ => Err(format!("Invalid file kind: {}", s)),
-        }
-    }
-}
+use super::models::{FileKind, StatKind};
 
 #[derive(Debug)]
 pub enum StatsError {

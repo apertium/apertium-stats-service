@@ -1,5 +1,4 @@
-#![feature(plugin)]
-#![feature(try_trait)]
+#![feature(plugin, custom_attribute, try_trait)]
 #![plugin(rocket_codegen)]
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
@@ -14,6 +13,8 @@ mod worker;
 extern crate chrono;
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate diesel_derive_enum;
 extern crate dotenv;
 #[macro_use]
 extern crate lazy_static;
@@ -40,7 +41,7 @@ use db::DbConn;
 use schema::entries as entries_db;
 use worker::Worker;
 use util::{normalize_name, JsonResult};
-use stats::FileKind;
+use models::FileKind;
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
