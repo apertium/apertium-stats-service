@@ -17,7 +17,6 @@ extern crate diesel;
 extern crate dotenv;
 #[macro_use]
 extern crate lazy_static;
-extern crate r2d2_diesel;
 extern crate regex;
 extern crate rocket;
 #[macro_use]
