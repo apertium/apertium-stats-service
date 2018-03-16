@@ -47,6 +47,36 @@ pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
+fn launch_tasks_and_reply(
+    worker: &State<Worker>,
+    name: String,
+    kind: Option<&FileKind>,
+) -> JsonResult {
+    match worker.launch_tasks(&name, kind) {
+        Ok((ref new_tasks, ref _in_progress_tasks)) if new_tasks.is_empty() => JsonResult::Err(
+            Some(Json(json!({
+                    "name": name,
+                    "error": "No recognized files",
+                }))),
+            Status::NotFound,
+        ),
+        Ok((ref _new_tasks, ref in_progress_tasks)) => JsonResult::Err(
+            Some(Json(json!({
+                    "name": name,
+                    "in_progress": in_progress_tasks,
+                }))),
+            Status::Accepted,
+        ),
+        Err(error) => JsonResult::Err(
+            Some(Json(json!({
+                    "name": name,
+                    "error": error,
+                }))),
+            Status::BadRequest,
+        ),
+    }
+}
+
 #[get("/")]
 fn index() -> &'static str {
     "USAGE
@@ -66,7 +96,7 @@ calculates <kind> statistics for the specified package"
 
 #[get("/<name>")]
 fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
-    let normalized_name = normalize_name(&name).map_err(|err| {
+    let name = normalize_name(&name).map_err(|err| {
         (
             Some(Json(json!({
                 "name": name,
@@ -87,37 +117,13 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
         if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
             JsonResult::Err(
                 Some(Json(json!({
-                    "name": normalized_name,
+                    "name": name,
                     "in_progress": in_progress_tasks,
                 }))),
                 Status::TooManyRequests,
             )
         } else {
-            match worker.launch_tasks(&name, None) {
-                Ok((ref new_tasks, ref _in_progress_tasks)) if new_tasks.is_empty() => {
-                    JsonResult::Err(
-                        Some(Json(json!({
-                            "name": normalized_name,
-                            "error": "No recognized files",
-                        }))),
-                        Status::NotFound,
-                    )
-                }
-                Ok((ref _new_tasks, ref in_progress_tasks)) => JsonResult::Err(
-                    Some(Json(json!({
-                            "name": normalized_name,
-                            "in_progress": in_progress_tasks,
-                        }))),
-                    Status::Accepted,
-                ),
-                Err(error) => JsonResult::Err(
-                    Some(Json(json!({
-                            "name": normalized_name,
-                            "error": error,
-                        }))),
-                    Status::BadRequest,
-                ),
-            }
+            launch_tasks_and_reply(&worker, name, None)
         }
     } else {
         let entries = entries_db::table
@@ -127,7 +133,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
             .load::<models::Entry>(&*conn)
             .map_err(|_| (None, Status::InternalServerError))?;
         JsonResult::Ok(Json(json!({
-            "name": normalized_name,
+            "name": name,
             "stats": entries,
             "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
         })))
@@ -141,7 +147,7 @@ fn get_specific_stats(
     conn: DbConn,
     worker: State<Worker>,
 ) -> JsonResult {
-    let normalized_name = normalize_name(&name).map_err(|err| {
+    let name = normalize_name(&name).map_err(|err| {
         (
             Some(Json(json!({
                 "name": name,
@@ -170,11 +176,7 @@ fn get_specific_stats(
         .map_err(|_| (None, Status::InternalServerError))?;
 
     if entries.is_empty() {
-        JsonResult::Ok(Json(json!({
-            "name": normalized_name,
-            "kind": format!("{:?}", file_kind),
-        })))
-        // TODO: implement this
+        launch_tasks_and_reply(&worker, name, Some(&file_kind))
     } else {
         let entries = entries_db::table
             .filter(entries_db::name.eq(&name))
@@ -184,7 +186,7 @@ fn get_specific_stats(
             .load::<models::Entry>(&*conn)
             .map_err(|_| (None, Status::InternalServerError))?;
         JsonResult::Ok(Json(json!({
-            "name": normalized_name,
+            "name": name,
             "stats": entries,
             "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
         })))

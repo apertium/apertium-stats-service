@@ -23,58 +23,90 @@ paths:
       summary: Returns statistics for the specified package
       responses:
         '200':
-          description: Package statistics
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  name:
-                    type: string
-                  stats:
-                    $ref: '#/components/schemas/Stats'
-                  in_progress:
-                    $ref: '#/components/schemas/StatsInProgress'
+          $ref: '#components/responses/Stats'
         '202':
-          description: Package statistics in progress
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  name:
-                    example: apertium-pl-dsb
-                    type: string
-                  in_progress:
-                    $ref: '#/components/schemas/StatsInProgress'
+          $ref: '#components/responses/StatsInProgress'
         '429':
-          description: Package statistics already in progress
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  name:
-                    example: apertium-pl-dsb
-                    type: string
-                  in_progress:
-                    $ref: '#/components/schemas/StatsInProgress'
+          $ref: '#components/responses/StatsAlreadyInProgress'
         '400':
-          description: Bad request error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#components/responses/BadRequestError'
         '404':
-          description: Package not found error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/PackageNotFoundError'
         '500':
-          description: Internal server error
+          $ref: '#/components/responses/InternalServerError'
+  /{package}/{kind}:
+    parameters:
+      - $ref: '#/components/parameters/Package'
+      - $ref: '#/components/parameters/Kind'
+    get:
+      summary: Returns statistics of the specified kind for the specified package
+      responses:
+        '200':
+          $ref: '#components/responses/Stats'
+        '202':
+          $ref: '#components/responses/StatsInProgress'
+        '429':
+          $ref: '#components/responses/StatsAlreadyInProgress'
+        '400':
+          $ref: '#components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/PackageNotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   # TODO: rest of the paths
 components:
+  responses:
+    Stats:
+      description: Package statistics
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+              stats:
+                $ref: '#/components/schemas/Stats'
+              in_progress:
+                $ref: '#/components/schemas/StatsInProgress'
+    StatsInProgress:
+      description: Package statistics in progress
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                example: apertium-pl-dsb
+                type: string
+              in_progress:
+                $ref: '#/components/schemas/StatsInProgress'
+    StatsAlreadyInProgress:
+      description: Package statistics already in progress
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                example: apertium-pl-dsb
+                type: string
+              in_progress:
+                $ref: '#/components/schemas/StatsInProgress'
+    BadRequestError:
+      description: Bad request error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PackageNotFoundError:
+      description: Package not found error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Internal server error
   parameters:
     Package:
       name: package
@@ -82,6 +114,14 @@ components:
       required: true
       description: package identifier
       example: apertium-pl-dsb
+      schema:
+        type: string
+    Kind:
+      name: kind
+      in: kind
+      required: true
+      description: file kind identifier
+      example: bidix
       schema:
         type: string
   schemas:
