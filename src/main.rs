@@ -31,7 +31,7 @@ use std::env;
 
 use diesel::dsl::sql;
 use dotenv::dotenv;
-use rocket_contrib::Json;
+use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use rocket::http::{Method, Status};
 use rocket::State;
@@ -53,13 +53,17 @@ fn launch_tasks_and_reply(
     kind: Option<&FileKind>,
 ) -> JsonResult {
     match worker.launch_tasks(&name, kind) {
-        Ok((ref new_tasks, ref _in_progress_tasks)) if new_tasks.is_empty() => JsonResult::Err(
-            Some(Json(json!({
+        Ok((ref new_tasks, ref in_progress_tasks))
+            if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
+        {
+            JsonResult::Err(
+                Some(Json(json!({
                     "name": name,
                     "error": "No recognized files",
                 }))),
-            Status::NotFound,
-        ),
+                Status::NotFound,
+            )
+        }
         Ok((ref _new_tasks, ref in_progress_tasks)) => JsonResult::Err(
             Some(Json(json!({
                     "name": name,
@@ -75,6 +79,30 @@ fn launch_tasks_and_reply(
             Status::BadRequest,
         ),
     }
+}
+
+fn parse_name_param(name: &str) -> Result<String, (Option<Json<Value>>, Status)> {
+    normalize_name(&name).map_err(|err| {
+        (
+            Some(Json(json!({
+                "name": name,
+                "error": err,
+            }))),
+            Status::BadRequest,
+        )
+    })
+}
+
+fn parse_kind_param(name: &str, kind: &str) -> Result<FileKind, (Option<Json<Value>>, Status)> {
+    FileKind::from_string(&kind).map_err(|err| {
+        (
+            Some(Json(json!({
+                "name": name,
+                "error": err,
+            }))),
+            Status::BadRequest,
+        )
+    })
 }
 
 #[get("/")]
@@ -96,15 +124,7 @@ calculates <kind> statistics for the specified package"
 
 #[get("/<name>")]
 fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
-    let name = normalize_name(&name).map_err(|err| {
-        (
-            Some(Json(json!({
-                "name": name,
-                "error": err,
-            }))),
-            Status::BadRequest,
-        )
-    })?;
+    let name = parse_name_param(&name)?;
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -147,25 +167,8 @@ fn get_specific_stats(
     conn: DbConn,
     worker: State<Worker>,
 ) -> JsonResult {
-    let name = normalize_name(&name).map_err(|err| {
-        (
-            Some(Json(json!({
-                "name": name,
-                "error": err,
-            }))),
-            Status::BadRequest,
-        )
-    })?;
-
-    let file_kind = FileKind::from_string(&kind).map_err(|err| {
-        (
-            Some(Json(json!({
-                "name": name,
-                "error": err,
-            }))),
-            Status::BadRequest,
-        )
-    })?;
+    let name = parse_name_param(&name)?;
+    let file_kind = parse_kind_param(&name, &kind)?;
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -194,15 +197,16 @@ fn get_specific_stats(
 }
 
 #[post("/<name>")]
-fn calculate_stats(name: String) -> String {
-    name
-    // TODO: implement this
+fn calculate_stats(name: String, worker: State<Worker>) -> JsonResult {
+    let name = parse_name_param(&name)?;
+    launch_tasks_and_reply(&worker, name, None)
 }
 
 #[post("/<name>/<kind>")]
-fn calculate_specific_stats(name: String, kind: String) -> String {
-    format!("{}: {}", name, kind)
-    // TODO: implement this
+fn calculate_specific_stats(name: String, kind: String, worker: State<Worker>) -> JsonResult {
+    let name = parse_name_param(&name)?;
+    let file_kind = parse_kind_param(&name, &kind)?;
+    launch_tasks_and_reply(&worker, name, Some(&file_kind))
 }
 
 fn main() {

@@ -34,6 +34,17 @@ paths:
           $ref: '#/components/responses/PackageNotFoundError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Computes statistics for the specified package
+      responses:
+        '202':
+          $ref: '#components/responses/StatsInProgress'
+        '429':
+          $ref: '#components/responses/StatsAlreadyInProgress'
+        '400':
+          $ref: '#components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /{package}/{kind}:
     parameters:
       - $ref: '#/components/parameters/Package'
@@ -53,7 +64,17 @@ paths:
           $ref: '#/components/responses/PackageNotFoundError'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  # TODO: rest of the paths
+    post:
+      summary: Computes statistics of the specified kind for the specified package
+      responses:
+        '202':
+          $ref: '#components/responses/StatsInProgress'
+        '429':
+          $ref: '#components/responses/StatsAlreadyInProgress'
+        '400':
+          $ref: '#components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   responses:
     Stats:
