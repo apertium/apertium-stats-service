@@ -82,7 +82,7 @@ fn launch_tasks_and_reply(
 }
 
 fn parse_name_param(name: &str) -> Result<String, (Option<Json<Value>>, Status)> {
-    normalize_name(&name).map_err(|err| {
+    normalize_name(name).map_err(|err| {
         (
             Some(Json(json!({
                 "name": name,
@@ -94,7 +94,7 @@ fn parse_name_param(name: &str) -> Result<String, (Option<Json<Value>>, Status)>
 }
 
 fn parse_kind_param(name: &str, kind: &str) -> Result<FileKind, (Option<Json<Value>>, Status)> {
-    FileKind::from_string(&kind).map_err(|err| {
+    FileKind::from_string(kind).map_err(|err| {
         (
             Some(Json(json!({
                 "name": name,
