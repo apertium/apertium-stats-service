@@ -29,7 +29,7 @@ pub struct Task {
     pub revision: i32,
     pub created: NaiveDateTime,
 }
-type Tasks = Vec<Task>; // TODO: make this a set?
+type Tasks = Vec<Task>;
 
 pub struct Worker {
     pool: super::db::Pool,
@@ -131,7 +131,7 @@ impl Worker {
                     println!(
                         "Error executing task for {}/{}: {:?}",
                         &package_name, &task.path, err
-                    ); // TODO: log instead
+                    );
                 }
             };
 

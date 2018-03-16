@@ -207,7 +207,7 @@ pub fn get_file_stats(
                             Err(err) => Err(StatsError::Io(err)),
                         }
                     }
-                    _ => Ok(vec![]), // TODO: rest of them
+                    _ => Ok(vec![]),
                 })
         });
 
