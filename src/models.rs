@@ -16,7 +16,7 @@ pub enum FileKind {
     Rlx,      // emits Rules
     Transfer, // emits Rules, Macros
     Lexc,
-    Twol,
+    Twol, // emits Rules
 }
 
 impl FileKind {

@@ -6,7 +6,7 @@ extern crate tempfile;
 extern crate tokio_core;
 
 use regex::{Regex, RegexSet, RegexSetBuilder};
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Output};
 use std::str;
 
@@ -207,6 +207,18 @@ pub fn get_file_stats(
                             Err(err) => Err(StatsError::Io(err)),
                         }
                     }
+                    FileKind::Twol => {
+                        let rule_count = BufReader::new(&*body)
+                            .lines()
+                            .filter(|line_result| {
+                                line_result
+                                    .as_ref()
+                                    .ok()
+                                    .map_or(false, |line| line.starts_with("\""))
+                            })
+                            .count();
+                        Ok(vec![(StatKind::Rules, rule_count.to_string())])
+                    }
                     _ => Ok(vec![]),
                 })
         });
@@ -228,6 +240,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
             format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}\.{re}\.lexc$", re=super::LANG_CODE_RE),
             format!(r"^apertium-{re}-{re}\.{re}\.twol$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-{re}\.{re}\.twol$", re=super::LANG_CODE_RE),
         ]).size_limit(50_000_000).build().unwrap();
     }
 
@@ -245,7 +258,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
             6 | 7 => Some(FileKind::Rlx),
             8 => Some(FileKind::Transfer),
             9 => Some(FileKind::Lexc),
-            10 => Some(FileKind::Twol),
+            10 | 11 => Some(FileKind::Twol),
             _ => None,
         })
 }
