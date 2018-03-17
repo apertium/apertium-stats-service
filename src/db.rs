@@ -11,7 +11,8 @@ pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
 pub fn init_pool(url: &str) -> Pool {
     let manager = ConnectionManager::<SqliteConnection>::new(url);
-    r2d2::Pool::new(manager).unwrap()
+    // sqlite cannot handle more than 1 concurrent request
+    r2d2::Pool::builder().max_size(1).build(manager).unwrap()
 }
 
 pub struct DbConn(pub r2d2::PooledConnection<ConnectionManager<SqliteConnection>>);

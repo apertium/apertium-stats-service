@@ -40,7 +40,6 @@ fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
-        // .arg("--recursive")
         .arg(format!("{}/{}/trunk", super::ORGANIZATION_ROOT, name))
         .output();
 
