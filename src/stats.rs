@@ -42,7 +42,7 @@ pub fn get_file_stats(
     ).parse()
         .unwrap();
 
-    let mut core = Core::new().unwrap(); // TODO: make these static/global?, move to utils.rs?
+    let mut core = Core::new().unwrap();
     let client = Client::configure()
         .connector(HttpsConnector::new(4, &core.handle()).unwrap())
         .build(&core.handle());
@@ -214,7 +214,7 @@ pub fn get_file_stats(
                                 line_result
                                     .as_ref()
                                     .ok()
-                                    .map_or(false, |line| line.starts_with("\""))
+                                    .map_or(false, |line| line.starts_with('"'))
                             })
                             .count();
                         Ok(vec![(StatKind::Rules, rule_count.to_string())])
