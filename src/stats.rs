@@ -101,11 +101,11 @@ pub fn get_file_stats(
                         }
 
                         Ok(vec![
-                            (StatKind::Stems, e_count.to_string()),
+                            (StatKind::Entries, e_count.to_string()),
                             (StatKind::Paradigms, pardef_count.to_string()),
                         ])
                     }
-                    FileKind::Bidix | FileKind::MetaBidix => {
+                    FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => {
                         let mut reader =
                             Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
                         let mut buf = Vec::new();
@@ -138,7 +138,7 @@ pub fn get_file_stats(
                             buf.clear();
                         }
 
-                        Ok(vec![(StatKind::Stems, e_count.to_string())])
+                        Ok(vec![(StatKind::Entries, e_count.to_string())])
                     }
                     FileKind::Transfer => {
                         let mut reader =

@@ -8,13 +8,13 @@ use super::schema::entries;
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum FileKind {
-    Monodix,     // emits Stems, Paradigms
-    Bidix,       // emits Stem
-    MetaMonodix, // emits Stems, Paradigms
-    MetaBidix,   // emits Stems
-    Postdix,
-    Rlx,      // emits Rules
-    Transfer, // emits Rules, Macros
+    Monodix,     // emits Entries, Paradigms
+    Bidix,       // emits Entries
+    MetaMonodix, // emits Entries, Paradigms
+    MetaBidix,   // emits Entries
+    Postdix,     // emits Entries
+    Rlx,         // emits Rules
+    Transfer,    // emits Rules, Macros
     Lexc,
     Twol, // emits Rules
 }
@@ -38,7 +38,7 @@ impl FileKind {
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum StatKind {
-    Stems,
+    Entries,
     Paradigms,
     Rules,
     Macros,

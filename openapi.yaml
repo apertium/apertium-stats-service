@@ -158,7 +158,7 @@ components:
     StatKind:
       type: string
       enum:
-        - Stems
+        - Entries
         - Paradigms
         - Rules
         - Macros
