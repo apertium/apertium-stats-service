@@ -19,6 +19,7 @@ paths:
   /{package}:
     parameters:
       - $ref: '#/components/parameters/Package'
+      - $ref: '#/components/parameters/Recursive'
     get:
       summary: Returns statistics for the specified package
       responses:
@@ -49,6 +50,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Package'
       - $ref: '#/components/parameters/Kind'
+      - $ref: '#/components/parameters/Recursive'
     get:
       summary: Returns statistics of the specified kind for the specified package
       responses:
@@ -145,6 +147,13 @@ components:
       example: bidix
       schema:
         type: string
+    Recursive:
+      name: recursive
+      in: query
+      description: whether file search should be recursive
+      schema:
+        type: boolean
+        default: false
   schemas:
     Error:
       type: object

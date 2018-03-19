@@ -1,4 +1,4 @@
-#![feature(plugin, custom_attribute, try_trait)]
+#![feature(plugin, custom_attribute, try_trait, custom_derive)]
 #![plugin(rocket_codegen)]
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
@@ -40,7 +40,7 @@ use self::diesel::prelude::*;
 use db::DbConn;
 use schema::entries as entries_db;
 use worker::Worker;
-use util::{normalize_name, JsonResult};
+use util::{normalize_name, JsonResult, Params};
 use models::FileKind;
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
@@ -51,8 +51,9 @@ fn launch_tasks_and_reply(
     worker: &State<Worker>,
     name: String,
     kind: Option<&FileKind>,
+    recursive: bool,
 ) -> JsonResult {
-    match worker.launch_tasks(&name, kind) {
+    match worker.launch_tasks(&name, kind, recursive) {
         Ok((ref new_tasks, ref in_progress_tasks))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
@@ -119,12 +120,20 @@ POST /apertium-<code1>(-<code2>)
 calculates statistics for the specified package
 
 POST /apertium-<code1>(-<code2>)/<kind>
-calculates <kind> statistics for the specified package"
+calculates <kind> statistics for the specified package
+
+See openapi.yaml for full specification."
 }
 
-#[get("/<name>")]
-fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
+#[get("/<name>?<params>")]
+fn get_stats(
+    name: String,
+    params: Option<Params>,
+    conn: DbConn,
+    worker: State<Worker>,
+) -> JsonResult {
     let name = parse_name_param(&name)?;
+    let recursive = params.unwrap_or(Default::default()).is_recursive();
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -143,7 +152,7 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
                 Status::TooManyRequests,
             )
         } else {
-            launch_tasks_and_reply(&worker, name, None)
+            launch_tasks_and_reply(&worker, name, None, recursive)
         }
     } else {
         let entries = entries_db::table
@@ -160,15 +169,17 @@ fn get_stats(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
     }
 }
 
-#[get("/<name>/<kind>")]
+#[get("/<name>/<kind>?<params>")]
 fn get_specific_stats(
     name: String,
     kind: String,
+    params: Option<Params>,
     conn: DbConn,
     worker: State<Worker>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
+    let recursive = params.unwrap_or(Default::default()).is_recursive();
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -179,7 +190,7 @@ fn get_specific_stats(
         .map_err(|_| (None, Status::InternalServerError))?;
 
     if entries.is_empty() {
-        launch_tasks_and_reply(&worker, name, Some(&file_kind))
+        launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
     } else {
         let entries = entries_db::table
             .filter(entries_db::name.eq(&name))
@@ -196,17 +207,24 @@ fn get_specific_stats(
     }
 }
 
-#[post("/<name>")]
-fn calculate_stats(name: String, worker: State<Worker>) -> JsonResult {
+#[post("/<name>?<params>")]
+fn calculate_stats(name: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
-    launch_tasks_and_reply(&worker, name, None)
+    let recursive = params.unwrap_or(Default::default()).is_recursive();
+    launch_tasks_and_reply(&worker, name, None, recursive)
 }
 
-#[post("/<name>/<kind>")]
-fn calculate_specific_stats(name: String, kind: String, worker: State<Worker>) -> JsonResult {
+#[post("/<name>/<kind>?<params>")]
+fn calculate_specific_stats(
+    name: String,
+    kind: String,
+    params: Option<Params>,
+    worker: State<Worker>,
+) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
-    launch_tasks_and_reply(&worker, name, Some(&file_kind))
+    let recursive = params.unwrap_or(Default::default()).is_recursive();
+    launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
 }
 
 fn main() {
