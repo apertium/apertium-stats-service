@@ -36,10 +36,15 @@ pub struct Worker {
     current_tasks: Arc<Mutex<HashMap<String, Tasks>>>,
 }
 
-fn list_files(name: &str) -> Result<Vec<(String, i32)>, String> {
+fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String> {
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
+        .args(if recursive {
+            vec!["--recursive"]
+        } else {
+            vec![]
+        })
         .arg(format!("{}/{}/trunk", super::ORGANIZATION_ROOT, name))
         .output();
 
@@ -154,8 +159,9 @@ impl Worker {
         &self,
         name: &str,
         maybe_kind: Option<&FileKind>,
+        recursive: bool,
     ) -> Result<(Tasks, Tasks), String> {
-        list_files(name).and_then(|files| {
+        list_files(name, recursive).and_then(|files| {
             let mut current_tasks = self.current_tasks.lock().unwrap();
             let current_package_tasks = current_tasks.entry(name.to_string());
 

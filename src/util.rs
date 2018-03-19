@@ -1,4 +1,5 @@
 use std::ops::Try;
+use std::default::Default;
 
 use regex::RegexSet;
 use rocket_contrib::{Json, Value};
@@ -66,6 +67,27 @@ impl<'r> Responder<'r> for JsonResult {
                 },
                 None => Err(status),
             },
+        }
+    }
+}
+
+#[derive(FromForm)]
+pub struct Params {
+    pub recursive: Option<bool>,
+    pub wait: Option<bool>,
+}
+
+impl Params {
+    pub fn is_recursive(&self) -> bool {
+        self.recursive.unwrap_or(false)
+    }
+}
+
+impl Default for Params {
+    fn default() -> Params {
+        Params {
+            recursive: None,
+            wait: None,
         }
     }
 }
