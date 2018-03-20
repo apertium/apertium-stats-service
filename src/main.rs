@@ -1,7 +1,9 @@
 #![feature(plugin, custom_attribute, try_trait, custom_derive)]
 #![plugin(rocket_codegen)]
+
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
+#![allow(suspicious_else_formatting)]
 
 mod db;
 mod models;
@@ -133,7 +135,7 @@ fn get_stats(
     worker: State<Worker>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
-    let recursive = params.unwrap_or(Default::default()).is_recursive();
+    let recursive = params.unwrap_or_default().is_recursive();
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -179,7 +181,7 @@ fn get_specific_stats(
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
-    let recursive = params.unwrap_or(Default::default()).is_recursive();
+    let recursive = params.unwrap_or_default().is_recursive();
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -210,7 +212,7 @@ fn get_specific_stats(
 #[post("/<name>?<params>")]
 fn calculate_stats(name: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
-    let recursive = params.unwrap_or(Default::default()).is_recursive();
+    let recursive = params.unwrap_or_default().is_recursive();
     launch_tasks_and_reply(&worker, name, None, recursive)
 }
 
@@ -223,7 +225,7 @@ fn calculate_specific_stats(
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
-    let recursive = params.unwrap_or(Default::default()).is_recursive();
+    let recursive = params.unwrap_or_default().is_recursive();
     launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
 }
 
