@@ -1,6 +1,5 @@
 #![feature(plugin, custom_attribute, try_trait, custom_derive)]
 #![plugin(rocket_codegen)]
-
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
 #![allow(suspicious_else_formatting)]
@@ -171,6 +170,12 @@ fn get_stats(
     }
 }
 
+// the no_params equivalents are required due to https://github.com/SergioBenitez/Rocket/issues/376
+#[get("/<name>")]
+fn get_stats_no_params(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
+    get_stats(name, None, conn, worker)
+}
+
 #[get("/<name>/<kind>?<params>")]
 fn get_specific_stats(
     name: String,
@@ -209,11 +214,26 @@ fn get_specific_stats(
     }
 }
 
+#[get("/<name>/<kind>")]
+fn get_specific_stats_no_params(
+    name: String,
+    kind: String,
+    conn: DbConn,
+    worker: State<Worker>,
+) -> JsonResult {
+    get_specific_stats(name, kind, None, conn, worker)
+}
+
 #[post("/<name>?<params>")]
 fn calculate_stats(name: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
     let recursive = params.unwrap_or_default().is_recursive();
     launch_tasks_and_reply(&worker, name, None, recursive)
+}
+
+#[post("/<name>")]
+fn calculate_stats_no_params(name: String, worker: State<Worker>) -> JsonResult {
+    calculate_stats(name, None, worker)
 }
 
 #[post("/<name>/<kind>?<params>")]
@@ -227,6 +247,15 @@ fn calculate_specific_stats(
     let file_kind = parse_kind_param(&name, &kind)?;
     let recursive = params.unwrap_or_default().is_recursive();
     launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
+}
+
+#[post("/<name>/<kind>")]
+fn calculate_specific_stats_no_params(
+    name: String,
+    kind: String,
+    worker: State<Worker>,
+) -> JsonResult {
+    calculate_specific_stats(name, kind, None, worker)
 }
 
 fn main() {
@@ -255,9 +284,13 @@ fn main() {
             routes![
                 index,
                 get_stats,
+                get_stats_no_params,
                 get_specific_stats,
+                get_specific_stats_no_params,
                 calculate_stats,
+                calculate_stats_no_params,
                 calculate_specific_stats,
+                calculate_specific_stats_no_params,
             ],
         )
         .attach(cors_options)
