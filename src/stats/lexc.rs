@@ -28,17 +28,66 @@ fn make_parse_error(line_number: usize, error: &str) -> StatsError {
     StatsError::Lexc(format!("Unable to parse L{}: {}", line_number, error))
 }
 
+fn update_lexicons(
+    current_lexicon: &str,
+    lexicons: &mut Lexicons,
+    lemma: &str,
+    continuation_lexicon: BTreeSet<String>,
+) {
+    match lexicons.entry(current_lexicon.to_string()) {
+        Entry::Occupied(mut occupied) => {
+            occupied
+                .get_mut()
+                .1
+                .insert((lemma.to_string(), continuation_lexicon));
+        }
+        Entry::Vacant(vacant) => {
+            vacant.insert((
+                vec![],
+                HashSet::from_iter(vec![(lemma.to_string(), continuation_lexicon)]),
+            ));
+        }
+    };
+}
+
 fn parse_line(
     line: &str,
     line_number: usize,
     current_lexicon: &str,
     lexicons: &mut Lexicons,
 ) -> Result<(), StatsError> {
+    lazy_static! {
+        static ref SPLIT_RE: Regex = Regex::new(r"^(.+?):([^;]+);(?:\s+!\s+(.+))?").unwrap(); // TODO: better name
+    }
+
     let token_count = line.split_whitespace().count();
 
     if token_count >= 2 {
         if line.contains(':') {
-            // TODO: me
+            let split = SPLIT_RE
+                .captures_iter(line)
+                .next()
+                .ok_or_else(|| make_parse_error(line_number, "missing tokens"))?;
+
+            let lemma = split
+                .get(0)
+                .ok_or_else(|| make_parse_error(line_number, "missing lemma"))?
+                .as_str()
+                .trim();
+            let continuation_lexicon = split
+                .get(1)
+                .ok_or_else(|| make_parse_error(line_number, "missing continuation lexicon"))?
+                .as_str()
+                .split_whitespace()
+                .last()
+                .ok_or_else(|| make_parse_error(line_number, "missing continuation lexicon"))?
+                .split('-')
+                .map(|x| x.to_string())
+                .collect::<BTreeSet<_>>();
+            // let gloss = split.get(2).ok_or_else(|| make_parse_error(line_number, "missing gloss"))?;
+
+            update_lexicons(current_lexicon, lexicons, lemma, continuation_lexicon);
+            Ok(())
         } else {
             let mut split = line.split(';')
                 .next()
@@ -61,20 +110,8 @@ fn parse_line(
             //     None
             // };
 
-            match lexicons.entry(current_lexicon.to_string()) {
-                Entry::Occupied(mut occupied) => {
-                    occupied
-                        .get_mut()
-                        .1
-                        .insert((lemma.to_string(), continuation_lexicon));
-                }
-                Entry::Vacant(vacant) => {
-                    vacant.insert((
-                        vec![],
-                        HashSet::from_iter(vec![(lemma.to_string(), continuation_lexicon)]),
-                    ));
-                }
-            };
+            update_lexicons(current_lexicon, lexicons, lemma, continuation_lexicon);
+            Ok(())
         }
     } else if token_count == 1 {
         let lexicon_pointer = line.split(';')
@@ -82,7 +119,7 @@ fn parse_line(
             .ok_or_else(|| make_parse_error(line_number, "failed to get lexicon pointer"))?
             .trim();
         if lexicon_pointer.contains(' ') {
-            return Err(make_parse_error(line_number, "lexicon pointer has space"));
+            Err(make_parse_error(line_number, "lexicon pointer has space"))
         } else {
             match lexicons.entry(current_lexicon.to_string()) {
                 Entry::Occupied(mut occupied) => {
@@ -92,12 +129,12 @@ fn parse_line(
                     vacant.insert((vec![lexicon_pointer.to_string()], HashSet::new()));
                 }
             };
+
+            Ok(())
         }
     } else {
-        return Err(make_parse_error(line_number, "missing tokens"));
+        Err(make_parse_error(line_number, "missing tokens"))
     }
-
-    Ok(())
 }
 
 pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsError> {
@@ -107,7 +144,6 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
     lazy_static! {
         static ref CLEAN_RE: Regex = Regex::new(r"%(.)").unwrap(); // TODO: better name
         static ref CLEAN_COMMENTS_RE: Regex = Regex::new(r"!.*$").unwrap();
-        // static ref
     }
 
     for (line_number, line) in BufReader::new(&*body)
