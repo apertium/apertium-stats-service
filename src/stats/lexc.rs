@@ -34,16 +34,16 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
         // static ref
     }
 
-    for line in BufReader::new(&*body).lines().filter_map(|line| line.ok()) {
+    for (line_number, line) in BufReader::new(&*body).lines().filter_map(|line| line.ok()).enumerate() {
         let clean_line_intermediate = CLEAN_RE.replace(&line, r"\1");
         let clean_line = CLEAN_COMMENTS_RE.replace(&clean_line_intermediate, "");
         if clean_line.starts_with("LEXICON") {
             let lexicon_name = clean_line.split_whitespace().nth(1).ok_or_else(|| {
-                StatsError::Lexc(format!("LEXICON start missing <space> (L{})", 1))
-            })?; // TODO: real line
+                StatsError::Lexc(format!("LEXICON start missing <space> (L{})", line_number))
+            })?;
             current_lexicon = Some(lexicon_name.to_string());
         } else if !clean_line.is_empty() && current_lexicon.is_some() {
-            let line_error = format!("Unable to parse L{}", 1); // TODO: real line
+            let line_error = format!("Unable to parse L{}", line_number);
             let token_count = clean_line.split_whitespace().count();
 
             if token_count >= 2 {
