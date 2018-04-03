@@ -42,6 +42,7 @@ pub enum StatKind {
     Paradigms,
     Rules,
     Macros,
+    Stems,
 }
 
 #[derive(Queryable, Serialize)]
