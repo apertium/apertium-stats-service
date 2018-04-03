@@ -63,9 +63,7 @@ pub fn get_file_stats(
                     FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => {
                         self::xml::get_bidix_stats(body, file_path)
                     }
-                    FileKind::Transfer => {
-                        self::xml::get_transfer_stats(body, file_path)
-                    }
+                    FileKind::Transfer => self::xml::get_transfer_stats(body, file_path),
                     FileKind::Rlx => {
                         let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
                         rlx_file.write_all(&*body).map_err(StatsError::Io)?;
@@ -114,10 +112,7 @@ pub fn get_file_stats(
                             .count();
                         Ok(vec![(StatKind::Rules, rule_count.to_string())])
                     }
-                    FileKind::Lexc => {
-                        self::lexc::get_stats(body)
-                    }
-                    // _ => Ok(vec![]),
+                    FileKind::Lexc => self::lexc::get_stats(body),
                 })
         });
 
