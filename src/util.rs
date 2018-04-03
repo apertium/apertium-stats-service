@@ -84,8 +84,8 @@ impl Params {
 }
 
 impl Default for Params {
-    fn default() -> Params {
-        Params {
+    fn default() -> Self {
+        Self {
             recursive: None,
             wait: None,
         }
