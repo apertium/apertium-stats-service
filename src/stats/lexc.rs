@@ -10,9 +10,23 @@ use super::StatsError;
 
 use models::StatKind;
 
+type LexiconEntry = (Vec<String>, HashSet<(String, BTreeSet<String>)>);
+type Lexicons = HashMap<String, LexiconEntry>;
+
+fn get_all_lexicons(lexicons: &Lexicons, root_lexicon: &str) -> BTreeSet<String> {
+    let mut frontier = BTreeSet::from_iter(lexicons.get(root_lexicon).unwrap().clone().0);
+    let frontier_clone = frontier.clone();
+    frontier.extend(
+        frontier_clone
+            .iter()
+            .flat_map(|lexicon| get_all_lexicons(lexicons, lexicon)),
+    );
+    frontier
+}
+
 pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsError> {
     let mut current_lexicon: Option<String> = None;
-    let mut lexicons: HashMap<String, (Vec<String>, HashSet<(String, BTreeSet<String>)>)> = HashMap::new();
+    let mut lexicons: Lexicons = HashMap::new();
 
     lazy_static! {
         static ref CLEAN_RE: Regex = Regex::new(r"%(.)").unwrap(); // TODO: better name
@@ -24,10 +38,9 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
         let clean_line_intermediate = CLEAN_RE.replace(&line, r"\1");
         let clean_line = CLEAN_COMMENTS_RE.replace(&clean_line_intermediate, "");
         if clean_line.starts_with("LEXICON") {
-            let lexicon_name = clean_line
-                .split_whitespace()
-                .nth(1)
-                .ok_or_else(|| StatsError::Lexc(format!("LEXICON start missing <space> (L{})", 1)))?; // TODO: real line
+            let lexicon_name = clean_line.split_whitespace().nth(1).ok_or_else(|| {
+                StatsError::Lexc(format!("LEXICON start missing <space> (L{})", 1))
+            })?; // TODO: real line
             current_lexicon = Some(lexicon_name.to_string());
         } else if !clean_line.is_empty() && current_lexicon.is_some() {
             let line_error = format!("Unable to parse L{}", 1); // TODO: real line
@@ -61,12 +74,16 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
 
                     match lexicons.entry(current_lexicon.as_ref().unwrap().to_string()) {
                         Entry::Occupied(mut occupied) => {
-                            occupied.get_mut().1.insert((lemma.to_string(), continuation_lexicon));
+                            occupied
+                                .get_mut()
+                                .1
+                                .insert((lemma.to_string(), continuation_lexicon));
                         }
                         Entry::Vacant(vacant) => {
-                            vacant.insert(
-                                (vec![], HashSet::from_iter(vec![(lemma.to_string(), continuation_lexicon)]))
-                            );
+                            vacant.insert((
+                                vec![],
+                                HashSet::from_iter(vec![(lemma.to_string(), continuation_lexicon)]),
+                            ));
                         }
                     };
                 }
@@ -94,5 +111,14 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
         }
     }
 
-    Ok(vec![])
+    if lexicons.contains_key("Root") {
+        let reachable_lexicons = get_all_lexicons(&lexicons, "Root");
+        let entries = reachable_lexicons
+            .iter()
+            .flat_map(|lexicon| lexicons.get(lexicon).unwrap().clone().1)
+            .collect::<HashSet<_>>();
+        Ok(vec![(StatKind::Stems, entries.len().to_string())])
+    } else {
+        Err(StatsError::Lexc(String::from("Missing Root lexicon")))
+    }
 }
