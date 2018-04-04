@@ -62,7 +62,7 @@ fn parse_line(
 
     let token_count = line.split_whitespace().count();
 
-    if token_count >= 2 {
+    if token_count >= 3 {
         if line.contains(':') {
             let split = SPLIT_RE
                 .captures_iter(line)
@@ -113,7 +113,7 @@ fn parse_line(
             update_lexicons(current_lexicon, lexicons, lemma, continuation_lexicon);
             Ok(())
         }
-    } else if token_count == 1 {
+    } else if token_count == 2 {
         let lexicon_pointer = line.split(';')
             .next()
             .ok_or_else(|| make_parse_error(line_number, "failed to get lexicon pointer"))?
@@ -142,7 +142,7 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
     let mut lexicons: Lexicons = HashMap::new();
 
     lazy_static! {
-        static ref CLEAN_RE: Regex = Regex::new(r"%(.)").unwrap(); // TODO: better name
+        static ref ESCAPE_RE: Regex = Regex::new(r"%(.)").unwrap();
         static ref CLEAN_COMMENTS_RE: Regex = Regex::new(r"!.*$").unwrap();
     }
 
@@ -151,8 +151,10 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
         .filter_map(|line| line.ok())
         .enumerate()
     {
-        let clean_line_intermediate = CLEAN_RE.replace(&line, r"\1");
-        let clean_line = CLEAN_COMMENTS_RE.replace(&clean_line_intermediate, "");
+        let unescaped_line = ESCAPE_RE.replace_all(&line, r"\1");
+        let without_comments_line = CLEAN_COMMENTS_RE.replace(&unescaped_line, "");
+        let clean_line = without_comments_line.trim();
+
         if clean_line.starts_with("LEXICON") {
             let lexicon_name = clean_line.split_whitespace().nth(1).ok_or_else(|| {
                 StatsError::Lexc(format!("LEXICON start missing <space> (L{})", line_number))
@@ -160,7 +162,7 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
             current_lexicon = Some(lexicon_name.to_string());
         } else if !clean_line.is_empty() && current_lexicon.is_some() {
             if let Err(err) = parse_line(
-                &clean_line,
+                clean_line,
                 line_number,
                 current_lexicon.as_ref().unwrap(),
                 &mut lexicons,
