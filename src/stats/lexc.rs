@@ -57,14 +57,14 @@ fn parse_line(
     lexicons: &mut Lexicons,
 ) -> Result<(), StatsError> {
     lazy_static! {
-        static ref SPLIT_RE: Regex = Regex::new(r"^(.+?):([^;]+);(?:\s+!\s+(.+))?").unwrap(); // TODO: better name
+        static ref ENTRY_RE: Regex = Regex::new(r"^(.+?):([^;]+);(?:\s+!\s+(.+))?").unwrap();
     }
 
     let token_count = line.split_whitespace().count();
 
     if token_count >= 3 {
         if line.contains(':') {
-            let split = SPLIT_RE
+            let split = ENTRY_RE
                 .captures_iter(line)
                 .next()
                 .ok_or_else(|| make_parse_error(line_number, "missing tokens"))?;
