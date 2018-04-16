@@ -261,8 +261,7 @@ fn calculate_specific_stats_no_params(
     calculate_specific_stats(name, kind, None, worker)
 }
 
-fn rocket() -> rocket::Rocket {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+fn rocket(database_url: String) -> rocket::Rocket {
     let pool = db::init_pool(&database_url);
     let worker = Worker::new(pool.clone());
 
@@ -299,5 +298,6 @@ fn rocket() -> rocket::Rocket {
 
 fn main() {
     dotenv().ok();
-    rocket().launch();
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    rocket(database_url).launch();
 }
