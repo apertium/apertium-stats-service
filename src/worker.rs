@@ -13,11 +13,13 @@ use std::thread;
 use std::str;
 
 use chrono::{NaiveDateTime, Utc};
-use self::quick_xml::reader::Reader;
-use self::quick_xml::events::Event;
-use self::quick_xml::events::attributes::Attribute;
 use self::diesel::prelude::*;
-use self::futures::Future;
+use self::hyper_tls::HttpsConnector;
+use self::hyper::Client;
+use self::quick_xml::events::attributes::Attribute;
+use self::quick_xml::events::Event;
+use self::quick_xml::reader::Reader;
+use self::tokio_core::reactor::Core;
 
 use super::models::{FileKind, NewEntry};
 use super::schema::entries;
@@ -111,7 +113,17 @@ impl Worker {
         let package_name = package_name.to_string();
 
         thread::spawn(move || {
-            match get_file_stats(task.path.clone(), &package_name, task.kind.clone()).wait() {
+            let mut core = Core::new().unwrap();
+            let client = Client::configure()
+                .connector(HttpsConnector::new(4, &core.handle()).unwrap())
+                .build(&core.handle());
+
+            match core.run(get_file_stats(
+                client,
+                task.path.clone(),
+                &package_name,
+                task.kind.clone(),
+            )) {
                 Ok(stats) => {
                     let conn = pool.get().unwrap();
                     let new_entries = stats

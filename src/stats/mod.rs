@@ -15,8 +15,8 @@ use regex::{Regex, RegexSet, RegexSetBuilder};
 use self::futures::{Future, Stream};
 use self::hyper_tls::HttpsConnector;
 use self::hyper::Client;
+use self::hyper::client::HttpConnector;
 use self::tempfile::NamedTempFile;
-use self::tokio_core::reactor::Core;
 
 use super::models::{FileKind, StatKind};
 
@@ -31,6 +31,7 @@ pub enum StatsError {
 }
 
 pub fn get_file_stats(
+    client: Client<HttpsConnector<HttpConnector>>,
     file_path: String,
     package_name: &str,
     file_kind: FileKind,
@@ -42,11 +43,6 @@ pub fn get_file_stats(
         file_path
     ).parse()
         .unwrap();
-
-    let core = Core::new().unwrap();
-    let client = Client::configure()
-        .connector(HttpsConnector::new(4, &core.handle()).unwrap())
-        .build(&core.handle());
 
     client
         .get(url)
