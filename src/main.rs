@@ -11,6 +11,9 @@ mod stats;
 mod util;
 mod worker;
 
+#[cfg(test)]
+mod tests;
+
 extern crate chrono;
 #[macro_use]
 extern crate diesel;
@@ -258,9 +261,7 @@ fn calculate_specific_stats_no_params(
     calculate_specific_stats(name, kind, None, worker)
 }
 
-fn main() {
-    dotenv().ok();
-
+fn rocket() -> rocket::Rocket {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = db::init_pool(&database_url);
     let worker = Worker::new(pool.clone());
@@ -294,5 +295,9 @@ fn main() {
             ],
         )
         .attach(cors_options)
-        .launch();
+}
+
+fn main() {
+    dotenv().ok();
+    rocket().launch();
 }
