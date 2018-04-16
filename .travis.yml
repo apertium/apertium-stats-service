@@ -12,7 +12,7 @@ script:
   - cargo test --verbose
 matrix:
   include:
-    - rust: nightly-2018-02-28
+    - rust: nightly-2018-03-10
       env: # updating this will cause cache invalidation
         - CLIPPY_VERSION=0.0.187
 notifications:
