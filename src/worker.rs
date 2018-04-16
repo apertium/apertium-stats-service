@@ -17,6 +17,7 @@ use self::quick_xml::reader::Reader;
 use self::quick_xml::events::Event;
 use self::quick_xml::events::attributes::Attribute;
 use self::diesel::prelude::*;
+use self::futures::Future;
 
 use super::models::{FileKind, NewEntry};
 use super::schema::entries;
@@ -110,7 +111,7 @@ impl Worker {
         let package_name = package_name.to_string();
 
         thread::spawn(move || {
-            match get_file_stats(&task.path, &package_name, &task.kind) {
+            match get_file_stats(task.path.clone(), &package_name, task.kind.clone()).wait() {
                 Ok(stats) => {
                     let conn = pool.get().unwrap();
                     let new_entries = stats

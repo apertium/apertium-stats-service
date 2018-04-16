@@ -7,16 +7,16 @@ extern crate hyper_tls;
 extern crate tempfile;
 extern crate tokio_core;
 
-use regex::{Regex, RegexSet, RegexSetBuilder};
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Output};
 use std::str;
 
+use regex::{Regex, RegexSet, RegexSetBuilder};
 use self::futures::{Future, Stream};
-use self::hyper::Client;
-use self::tokio_core::reactor::Core;
 use self::hyper_tls::HttpsConnector;
+use self::hyper::Client;
 use self::tempfile::NamedTempFile;
+use self::tokio_core::reactor::Core;
 
 use super::models::{FileKind, StatKind};
 
@@ -31,10 +31,10 @@ pub enum StatsError {
 }
 
 pub fn get_file_stats(
-    file_path: &str,
+    file_path: String,
     package_name: &str,
-    file_kind: &FileKind,
-) -> Result<Vec<(StatKind, String)>, StatsError> {
+    file_kind: FileKind,
+) -> impl Future<Item = Vec<(StatKind, String)>, Error = StatsError> {
     let url = format!(
         "{}/{}/master/{}",
         super::ORGANIZATION_RAW_ROOT,
@@ -43,12 +43,12 @@ pub fn get_file_stats(
     ).parse()
         .unwrap();
 
-    let mut core = Core::new().unwrap();
+    let core = Core::new().unwrap();
     let client = Client::configure()
         .connector(HttpsConnector::new(4, &core.handle()).unwrap())
         .build(&core.handle());
 
-    let work = client
+    client
         .get(url)
         .map_err(StatsError::Hyper)
         .and_then(|response| {
@@ -56,14 +56,14 @@ pub fn get_file_stats(
                 .body()
                 .concat2()
                 .map_err(StatsError::Hyper)
-                .and_then(move |body| match *file_kind {
+                .and_then(move |body| match file_kind {
                     FileKind::Monodix | FileKind::MetaMonodix => {
-                        self::xml::get_monodix_stats(body, file_path)
+                        self::xml::get_monodix_stats(body, &file_path)
                     }
                     FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => {
-                        self::xml::get_bidix_stats(body, file_path)
+                        self::xml::get_bidix_stats(body, &file_path)
                     }
-                    FileKind::Transfer => self::xml::get_transfer_stats(body, file_path),
+                    FileKind::Transfer => self::xml::get_transfer_stats(body, &file_path),
                     FileKind::Rlx => {
                         let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
                         rlx_file.write_all(&*body).map_err(StatsError::Io)?;
@@ -114,9 +114,7 @@ pub fn get_file_stats(
                     }
                     FileKind::Lexc => self::lexc::get_stats(body),
                 })
-        });
-
-    core.run(work)
+        })
 }
 
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
