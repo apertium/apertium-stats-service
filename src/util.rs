@@ -1,11 +1,11 @@
-use std::ops::Try;
 use std::default::Default;
+use std::ops::Try;
 
 use regex::RegexSet;
-use rocket_contrib::{Json, Value};
 use rocket::http::Status;
 use rocket::response::{Responder, Response};
 use rocket::Request;
+use rocket_contrib::{Json, Value};
 
 pub fn normalize_name(name: &str) -> Result<String, String> {
     let normalized_name = if name.starts_with("apertium-") {
@@ -16,8 +16,8 @@ pub fn normalize_name(name: &str) -> Result<String, String> {
 
     lazy_static! {
         static ref RE: RegexSet = RegexSet::new(&[
-            format!(r"^apertium-({re})$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-({re})-({re})$", re=super::LANG_CODE_RE),
+            format!(r"^apertium-({re})$", re = super::LANG_CODE_RE),
+            format!(r"^apertium-({re})-({re})$", re = super::LANG_CODE_RE),
         ]).unwrap();
     }
 
