@@ -106,6 +106,42 @@ impl Worker {
         }
     }
 
+    fn record_new_tasks(
+        current_package_tasks: Entry<String, Tasks>,
+        new_tasks: Tasks,
+    ) -> Result<(Tasks, Tasks), String> {
+        match current_package_tasks {
+            Entry::Occupied(mut occupied) => {
+                if !new_tasks.is_empty() {
+                    occupied.get_mut().extend(new_tasks.clone());
+                }
+                Ok((new_tasks, occupied.get().to_vec()))
+            }
+            Entry::Vacant(vacant) => {
+                if new_tasks.is_empty() {
+                    Ok((new_tasks, Vec::new()))
+                } else {
+                    Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
+                }
+            }
+        }
+    }
+
+    fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: Task) {
+        if let Entry::Occupied(mut occupied) = current_package_tasks {
+            if let Some(position) = occupied.get().iter().position(
+                |&Task {
+                     ref kind, ref path, ..
+                 }| { kind == &task.kind && path == &task.path },
+            ) {
+                occupied.get_mut().remove(position);
+                if occupied.get().is_empty() {
+                    occupied.remove_entry();
+                }
+            }
+        }
+    }
+
     fn launch_task(&self, package_name: &str, task: &Task) {
         let current_tasks_guard = self.current_tasks.clone();
         let pool = self.pool.clone();
@@ -153,18 +189,7 @@ impl Worker {
             };
 
             let mut current_tasks = current_tasks_guard.lock().unwrap();
-            if let Entry::Occupied(mut occupied) = current_tasks.entry(package_name) {
-                if let Some(position) = occupied.get().iter().position(
-                    |&Task {
-                         ref kind, ref path, ..
-                     }| { kind == &task.kind && path == &task.path },
-                ) {
-                    occupied.get_mut().remove(position);
-                    if occupied.get().is_empty() {
-                        occupied.remove_entry();
-                    }
-                }
-            }
+            Worker::record_task_completion(current_tasks.entry(package_name), task);
         });
     }
 
@@ -211,30 +236,8 @@ impl Worker {
                 self.launch_task(name, task);
             }
 
-            self.record_new_tasks(current_package_tasks, new_tasks)
+            Worker::record_new_tasks(current_package_tasks, new_tasks)
         })
-    }
-
-    fn record_new_tasks(
-        &self,
-        current_package_tasks: Entry<String, Tasks>,
-        new_tasks: Tasks,
-    ) -> Result<(Tasks, Tasks), String> {
-        match current_package_tasks {
-            Entry::Occupied(mut occupied) => {
-                if !new_tasks.is_empty() {
-                    occupied.get_mut().extend(new_tasks.clone());
-                }
-                Ok((new_tasks, occupied.get().to_vec()))
-            }
-            Entry::Vacant(vacant) => {
-                if new_tasks.is_empty() {
-                    Ok((new_tasks, Vec::new()))
-                } else {
-                    Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
-                }
-            }
-        }
     }
 
     pub fn get_tasks_in_progress(&self, name: &str) -> Option<Tasks> {
