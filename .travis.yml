@@ -14,7 +14,7 @@ matrix:
   include:
     - rust: nightly-2018-03-15
       env: # updating this will cause cache invalidation
-        - CLIPPY_VERSION=0.0.188
+        - CLIPPY_VERSION=0.0.190
 notifications:
   on_failure: change
   on_success: change
