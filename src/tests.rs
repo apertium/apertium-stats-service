@@ -13,9 +13,8 @@ macro_rules! run_test {
     (|$client:ident| $block:expr) => ({
         let db_file = NamedTempFile::new().expect("valid database file");
         let db_path = db_file.path().to_str().expect("valid database path");
-        println!("{:?}", db_path);
         Command::new("diesel")
-            // .stdout(Stdio::null())
+            .stdout(Stdio::null())
             .args(&["database", "setup"])
             .env("DATABASE_URL", db_path)
             .status()
