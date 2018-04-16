@@ -1,4 +1,5 @@
-#![feature(plugin, custom_attribute, try_trait, custom_derive)]
+#![feature(plugin, custom_attribute, try_trait, custom_derive, conservative_impl_trait,
+           expanded_impl_trait)]
 #![plugin(rocket_codegen)]
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
