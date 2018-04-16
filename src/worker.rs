@@ -211,22 +211,30 @@ impl Worker {
                 self.launch_task(name, task);
             }
 
-            match current_package_tasks {
-                Entry::Occupied(mut occupied) => {
-                    if !new_tasks.is_empty() {
-                        occupied.get_mut().extend(new_tasks.clone());
-                    }
-                    Ok((new_tasks, occupied.get().to_vec()))
+            self.record_new_tasks(current_package_tasks, new_tasks)
+        })
+    }
+
+    fn record_new_tasks(
+        &self,
+        current_package_tasks: Entry<String, Tasks>,
+        new_tasks: Tasks,
+    ) -> Result<(Tasks, Tasks), String> {
+        match current_package_tasks {
+            Entry::Occupied(mut occupied) => {
+                if !new_tasks.is_empty() {
+                    occupied.get_mut().extend(new_tasks.clone());
                 }
-                Entry::Vacant(vacant) => {
-                    if new_tasks.is_empty() {
-                        Ok((new_tasks, Vec::new()))
-                    } else {
-                        Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
-                    }
+                Ok((new_tasks, occupied.get().to_vec()))
+            }
+            Entry::Vacant(vacant) => {
+                if new_tasks.is_empty() {
+                    Ok((new_tasks, Vec::new()))
+                } else {
+                    Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
                 }
             }
-        })
+        }
     }
 
     pub fn get_tasks_in_progress(&self, name: &str) -> Option<Tasks> {
