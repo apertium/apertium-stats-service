@@ -5,6 +5,7 @@ cache: cargo
 before_script:
   - rustup component add rustfmt-preview
   - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
+  - cargo install diesel_cli
 script:
   - cargo fmt -- --write-mode=diff
   - cargo clippy --verbose
@@ -14,3 +15,6 @@ matrix:
     - rust: nightly-2018-02-28
       env: # updating this will cause cache invalidation
         - CLIPPY_VERSION=0.0.187
+notifications:
+  on_failure: change
+  on_success: change
