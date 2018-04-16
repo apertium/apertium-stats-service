@@ -40,6 +40,14 @@ pub struct Worker {
 }
 
 fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String> {
+    fn handle_utf8_error(err: str::Utf8Error, reader: &Reader<&[u8]>) -> String {
+        format!(
+            "UTF8 decoding error at position {}: {:?}",
+            reader.buffer_position(),
+            err,
+        )
+    }
+
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
@@ -67,22 +75,43 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
             loop {
                 match reader.read_event(&mut buf) {
                     Ok(Event::Start(ref e)) if e.name() == b"name" => in_name = true,
-                    Ok(Event::Start(ref e)) if e.name() == b"commit" => for a in e.attributes() {
-                        let Attribute { value, key } = a.unwrap();
-                        if str::from_utf8(key).unwrap() == "revision" {
-                            files.push((
-                                name.clone(),
-                                str::from_utf8(&value).unwrap().parse::<i32>().unwrap(),
-                            ));
-                            break;
+                    Ok(Event::Start(ref e)) if e.name() == b"commit" => {
+                        for attr in e.attributes() {
+                            if let Ok(Attribute { value, key }) = attr {
+                                if str::from_utf8(key)
+                                    .map_err(|err| handle_utf8_error(err, &reader))?
+                                    == "revision"
+                                {
+                                    files.push((
+                                        name.clone(),
+                                        str::from_utf8(&value)
+                                            .map_err(|err| handle_utf8_error(err, &reader))?
+                                            .parse::<i32>()
+                                            .map_err(|err| {
+                                                format!(
+                                                    "Revision number parsing error at position {}: {:?}",
+                                                    reader.buffer_position(),
+                                                    err,
+                                                )
+                                            })?,
+                                    ));
+                                    break;
+                                }
+                            }
                         }
-                    },
+                    }
                     Ok(Event::Text(ref e)) if in_name => {
-                        name = e.unescape_and_decode(&reader).unwrap()
+                        name = e.unescape_and_decode(&reader).map_err(|err| {
+                            format!(
+                                "Decoding error at position {}: {:?}",
+                                reader.buffer_position(),
+                                err,
+                            )
+                        })?
                     }
                     Ok(Event::End(ref e)) if e.name() == b"name" => in_name = false,
                     Ok(Event::Eof) => break,
-                    Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                    Err(err) => panic!("Error at position {}: {:?}", reader.buffer_position(), err),
                     _ => (),
                 }
                 buf.clear();
