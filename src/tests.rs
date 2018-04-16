@@ -3,14 +3,14 @@ use std::process::{Command, Stdio};
 extern crate serde_json;
 extern crate tempfile;
 
-use rocket::local::Client;
-use rocket::http::Status;
 use self::tempfile::NamedTempFile;
+use rocket::http::Status;
+use rocket::local::Client;
 
 use super::rocket;
 
 macro_rules! run_test {
-    (|$client:ident| $block:expr) => ({
+    (| $client:ident | $block:expr) => {{
         let db_file = NamedTempFile::new().expect("valid database file");
         let db_path = db_file.path().to_str().expect("valid database path");
         Command::new("diesel")
@@ -21,7 +21,7 @@ macro_rules! run_test {
             .expect("successful database setup");
         let $client = Client::new(rocket(db_path.into())).expect("valid rocket instance");
         $block
-    })
+    }};
 }
 
 fn parse_response(mut response: rocket::local::LocalResponse) -> serde_json::Value {

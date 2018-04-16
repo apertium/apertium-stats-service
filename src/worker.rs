@@ -8,18 +8,18 @@ extern crate tokio_core;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process::{Command, Output};
+use std::str;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::str;
 
-use chrono::{NaiveDateTime, Utc};
 use self::diesel::prelude::*;
-use self::hyper_tls::HttpsConnector;
 use self::hyper::Client;
+use self::hyper_tls::HttpsConnector;
 use self::quick_xml::events::attributes::Attribute;
 use self::quick_xml::events::Event;
 use self::quick_xml::reader::Reader;
 use self::tokio_core::reactor::Core;
+use chrono::{NaiveDateTime, Utc};
 
 use super::models::{FileKind, NewEntry};
 use super::schema::entries;
