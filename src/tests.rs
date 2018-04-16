@@ -74,11 +74,15 @@ fn test_invalid_package_stats() {
 
 #[test]
 fn test_module_stats() {
+    let lang = "cat";
+    let module = format!("apertium-{}", lang);
+    let endpoint = format!("/{}", module);
+
     run_test!(|client| {
-        let response = client.get("/apertium-cat").dispatch();
+        let response = client.get(endpoint.clone()).dispatch();
         assert_eq!(response.status(), Status::Accepted);
         let mut body = parse_response(response);
-        assert_eq!(body["name"], "apertium-cat");
+        assert_eq!(body["name"], module);
 
         let in_progress = body["in_progress"]
             .as_array_mut()
@@ -87,7 +91,10 @@ fn test_module_stats() {
         in_progress
             .sort_by_key(|entry| entry["kind"].as_str().expect("kind is string").to_string());
         assert_eq!(in_progress[0]["kind"], "Monodix");
-        assert_eq!(in_progress[0]["path"], "apertium-cat.cat.dix");
+        assert_eq!(
+            in_progress[0]["path"],
+            format!("apertium-{0}.{0}.dix", lang)
+        );
         let revision = in_progress[0]["revision"]
             .as_i64()
             .expect("revision is i64");
@@ -95,7 +102,7 @@ fn test_module_stats() {
 
         let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
         while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
-            let response = client.get("/apertium-cat").dispatch();
+            let response = client.get(endpoint.clone()).dispatch();
             match response.status() {
                 Status::TooManyRequests => {
                     println!("Waiting for OK... ({:?})", sleep_duration);
@@ -107,7 +114,7 @@ fn test_module_stats() {
                         .expect("valid in_progress")
                         .is_empty()
                     {
-                        assert_eq!(body["name"], "apertium-cat");
+                        assert_eq!(body["name"], module);
                         let mut stats = body["stats"].as_array_mut().expect("valid stats");
                         assert_eq!(stats.len(), 3);
                         stats.sort_by_key(|entry| {
@@ -115,7 +122,7 @@ fn test_module_stats() {
                         });
                         assert_eq!(stats[0]["file_kind"], "Monodix");
                         assert_eq!(stats[0]["stat_kind"], "Entries");
-                        assert_eq!(stats[0]["path"], "apertium-cat.cat.dix");
+                        assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", lang));
                         assert!(stats[0]["revision"].as_i64().expect("revision is i64") > 500);
                         let value = stats[0]["value"]
                             .as_str()
@@ -123,6 +130,20 @@ fn test_module_stats() {
                             .parse::<i32>()
                             .expect("value is i32");
                         assert!(value > 50000, value);
+
+                        let response = client.get(endpoint.clone()).dispatch();
+                        assert_eq!(response.status(), Status::Ok);
+                        let mut body = parse_response(response);
+                        assert_eq!(body["name"], module);
+                        assert!(
+                            body["in_progress"]
+                                .as_array()
+                                .expect("valid in_progress")
+                                .is_empty(),
+                            body["in_progress"].to_string()
+                        );
+                        assert_eq!(body["stats"].as_array().expect("valid stats").len(), 3);
+
                         return;
                     }
                 }
