@@ -20,4 +20,5 @@ Edit `.env` to set environment parameters.
 Development
 -----------
 
-Run `cargo fmt` to format code.
+Run `cargo fmt` to format code, `cargo clippy` to check for lint and
+`cargo test` to run tests.
