@@ -118,19 +118,19 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
         static ref RE: RegexSet = {
             let re = super::LANG_CODE_RE;
             RegexSetBuilder::new(&[
-                format!(r"^apertium-{re}\.{re}\.dix$", re = re),
-                format!(r"^apertium-{re}-{re}\.{re}-{re}\.dix$", re = re),
-                format!(r"^apertium-{re}\.{re}\.metadix$", re = re),
-                format!(r"^apertium-{re}-{re}\.{re}\.metadix$", re = re),
-                format!(r"^apertium-{re}-{re}\.{re}-{re}\.metadix$", re = re),
-                format!(r"^apertium-{re}-{re}\.post-{re}\.dix$", re = re),
-                format!(r"^apertium-{re}\.post-{re}\.dix$", re = re),
-                format!(r"^apertium-{re}-{re}\.{re}-{re}\.rlx$", re = re),
-                format!(r"^apertium-{re}\.{re}\.rlx$", re = re),
-                format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re = re),
-                format!(r"^apertium-{re}\.{re}\.lexc$", re = re),
-                format!(r"^apertium-{re}-{re}\.{re}\.twol$", re = re),
-                format!(r"^apertium-{re}\.{re}\.twol$", re = re),
+                format!(r"apertium-{re}\.{re}\.dix$", re = re),
+                format!(r"apertium-{re}-{re}\.{re}-{re}\.dix$", re = re),
+                format!(r"apertium-{re}\.{re}\.metadix$", re = re),
+                format!(r"apertium-{re}-{re}\.{re}\.metadix$", re = re),
+                format!(r"apertium-{re}-{re}\.{re}-{re}\.metadix$", re = re),
+                format!(r"apertium-{re}-{re}\.post-{re}\.dix$", re = re),
+                format!(r"apertium-{re}\.post-{re}\.dix$", re = re),
+                format!(r"apertium-{re}-{re}\.{re}-{re}\.rlx$", re = re),
+                format!(r"apertium-{re}\.{re}\.rlx$", re = re),
+                format!(r"apertium-{re}-{re}\.{re}-{re}\.t\dx$", re = re),
+                format!(r"apertium-{re}\.{re}\.lexc$", re = re),
+                format!(r"apertium-{re}-{re}\.{re}\.twol$", re = re),
+                format!(r"apertium-{re}\.{re}\.twol$", re = re),
             ]).size_limit(50_000_000)
                 .build()
                 .unwrap()

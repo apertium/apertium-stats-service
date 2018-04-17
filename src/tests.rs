@@ -192,7 +192,7 @@ fn test_get_pair_stats() {
         assert_eq!(in_progress.len(), 7);
 
         wait_for_ok(&client, &endpoint, |response| {
-            let mut body = parse_response(response);
+            let body = parse_response(response);
             if body["in_progress"]
                 .as_array()
                 .expect("valid in_progress")
@@ -236,7 +236,7 @@ fn test_get_dix_module_stats() {
         assert_eq!(in_progress.len(), 1);
 
         wait_for_ok(&client, &endpoint, |response| {
-            let mut body = parse_response(response);
+            let body = parse_response(response);
             if body["in_progress"]
                 .as_array()
                 .expect("valid in_progress")
@@ -257,7 +257,7 @@ fn test_get_dix_module_stats() {
 
                 let response = client.get(endpoint.clone()).dispatch();
                 assert_eq!(response.status(), Status::Ok);
-                let mut body = parse_response(response);
+                let body = parse_response(response);
                 assert_eq!(body["name"], module);
                 assert!(
                     body["in_progress"]
@@ -267,6 +267,49 @@ fn test_get_dix_module_stats() {
                     body["in_progress"].to_string()
                 );
                 assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
+
+                return true;
+            }
+
+            return false;
+        });
+    });
+}
+
+#[test]
+fn test_get_recursive_package_stats() {
+    let lang = "kaz";
+    let module = format!("apertium-{}", lang);
+    let endpoint = format!("/{}/twol?recursive=true", module);
+
+    run_test!(|client| {
+        let response = client.get(endpoint.clone()).dispatch();
+        assert_eq!(response.status(), Status::Accepted);
+        let mut body = parse_response(response);
+        assert_eq!(body["name"], module);
+
+        let in_progress = body["in_progress"]
+            .as_array_mut()
+            .expect("valid in_progress");
+        assert_eq!(in_progress.len(), 3);
+
+        wait_for_ok(&client, &endpoint, |response| {
+            let body = parse_response(response);
+            if body["in_progress"]
+                .as_array()
+                .expect("valid in_progress")
+                .is_empty()
+            {
+                assert_eq!(body["name"], module);
+                let stats = body["stats"].as_array().expect("valid stats");
+                assert_eq!(stats.len(), 3);
+                assert!(
+                    stats.iter().any(|entry| entry["path"]
+                        .as_str()
+                        .expect("path is string")
+                        .contains("/")),
+                    body["stats"].to_string()
+                );
 
                 return true;
             }
@@ -293,7 +336,7 @@ fn test_post_package_stats() {
                 .expect("valid in_progress")
                 .is_empty()
             {
-                let mut stats = body["stats"].as_array_mut().expect("valid stats");
+                let stats = body["stats"].as_array_mut().expect("valid stats");
                 stats.sort_by_key(|entry| {
                     entry["stat_kind"]
                         .as_str()
@@ -318,7 +361,7 @@ fn test_post_package_stats() {
                         .is_empty()
                     {
                         assert_eq!(body["name"], module);
-                        let mut new_stats = body["stats"].as_array_mut().expect("valid stats");
+                        let new_stats = body["stats"].as_array_mut().expect("valid stats");
                         new_stats.sort_by_key(|entry| {
                             entry["stat_kind"]
                                 .as_str()
