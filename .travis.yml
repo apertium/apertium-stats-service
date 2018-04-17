@@ -4,7 +4,7 @@ rust:
 cache: cargo
 before_script:
   - rustup component add rustfmt-preview
-  - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
+  - cargo +nightly install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
   - cargo install diesel_cli
 script:
   - cargo fmt -- --write-mode=diff
