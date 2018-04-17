@@ -9,10 +9,13 @@ before_script:
   - rustup component add rustfmt-preview
   - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
   - cargo install diesel_cli || echo 'diesel_cli already installed'
+  - cargo install cargo-tarpaulin || echo 'cargo-tarpaulin already installed'
 script:
   - cargo fmt -- --write-mode=diff
   - cargo clippy --verbose
   - cargo test --verbose
+after_success:
+  - cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 matrix:
   include:
     - rust: nightly-2018-04-15
