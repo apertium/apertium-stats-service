@@ -74,7 +74,7 @@ fn test_invalid_package_stats() {
 
 #[test]
 fn test_module_stats() {
-    let lang = "cat";
+    let lang = "kaz";
     let module = format!("apertium-{}", lang);
     let endpoint = format!("/{}", module);
 
@@ -87,13 +87,13 @@ fn test_module_stats() {
         let in_progress = body["in_progress"]
             .as_array_mut()
             .expect("valid in_progress");
-        assert_eq!(in_progress.len(), 2);
+        assert_eq!(in_progress.len(), 5);
         in_progress
-            .sort_by_key(|entry| entry["kind"].as_str().expect("kind is string").to_string());
-        assert_eq!(in_progress[0]["kind"], "Monodix");
+            .sort_by_key(|entry| entry["path"].as_str().expect("path is string").to_string());
+        assert_eq!(in_progress[0]["kind"], "Twol");
         assert_eq!(
             in_progress[0]["path"],
-            format!("apertium-{0}.{0}.dix", lang)
+            format!("apertium-{0}.err.twol", lang)
         );
         let revision = in_progress[0]["revision"]
             .as_i64()
@@ -116,20 +116,20 @@ fn test_module_stats() {
                     {
                         assert_eq!(body["name"], module);
                         let mut stats = body["stats"].as_array_mut().expect("valid stats");
-                        assert_eq!(stats.len(), 3);
+                        assert_eq!(stats.len(), 5);
                         stats.sort_by_key(|entry| {
                             entry["path"].as_str().expect("path is string").to_string()
                         });
-                        assert_eq!(stats[0]["file_kind"], "Monodix");
-                        assert_eq!(stats[0]["stat_kind"], "Entries");
-                        assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", lang));
+                        assert_eq!(stats[0]["file_kind"], "Twol");
+                        assert_eq!(stats[0]["stat_kind"], "Rules");
+                        assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", lang));
                         assert!(stats[0]["revision"].as_i64().expect("revision is i64") > 500);
                         let value = stats[0]["value"]
                             .as_str()
                             .expect("value is string")
                             .parse::<i32>()
                             .expect("value is i32");
-                        assert!(value > 50000, value);
+                        assert!(value > 15, value);
 
                         let response = client.get(endpoint.clone()).dispatch();
                         assert_eq!(response.status(), Status::Ok);
@@ -142,7 +142,7 @@ fn test_module_stats() {
                                 .is_empty(),
                             body["in_progress"].to_string()
                         );
-                        assert_eq!(body["stats"].as_array().expect("valid stats").len(), 3);
+                        assert_eq!(body["stats"].as_array().expect("valid stats").len(), 5);
 
                         return;
                     }

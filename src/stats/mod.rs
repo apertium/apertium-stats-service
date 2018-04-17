@@ -115,43 +115,26 @@ pub fn get_file_stats(
 
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
     lazy_static! {
-        static ref RE: RegexSet = RegexSetBuilder::new(&[
-            format!(r"^apertium-{re}\.{re}\.dix$", re = super::LANG_CODE_RE),
-            format!(
-                r"^apertium-{re}-{re}\.{re}-{re}\.dix$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(r"^apertium-{re}\.{re}\.metadix$", re = super::LANG_CODE_RE),
-            format!(
-                r"^apertium-{re}-{re}\.{re}\.metadix$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(
-                r"^apertium-{re}-{re}\.{re}-{re}\.metadix$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(
-                r"^apertium-{re}-{re}\.post-{re}\.dix$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(
-                r"^apertium-{re}-{re}\.{re}-{re}\.rlx$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(r"^apertium-{re}\.{re}\.rlx$", re = super::LANG_CODE_RE),
-            format!(
-                r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(r"^apertium-{re}\.{re}\.lexc$", re = super::LANG_CODE_RE),
-            format!(
-                r"^apertium-{re}-{re}\.{re}\.twol$",
-                re = super::LANG_CODE_RE
-            ),
-            format!(r"^apertium-{re}\.{re}\.twol$", re = super::LANG_CODE_RE),
-        ]).size_limit(50_000_000)
-            .build()
-            .unwrap();
+        static ref RE: RegexSet = {
+            let re = super::LANG_CODE_RE;
+            RegexSetBuilder::new(&[
+                format!(r"^apertium-{re}\.{re}\.dix$", re = re),
+                format!(r"^apertium-{re}-{re}\.{re}-{re}\.dix$", re = re),
+                format!(r"^apertium-{re}\.{re}\.metadix$", re = re),
+                format!(r"^apertium-{re}-{re}\.{re}\.metadix$", re = re),
+                format!(r"^apertium-{re}-{re}\.{re}-{re}\.metadix$", re = re),
+                format!(r"^apertium-{re}-{re}\.post-{re}\.dix$", re = re),
+                format!(r"^apertium-{re}\.post-{re}\.dix$", re = re),
+                format!(r"^apertium-{re}-{re}\.{re}-{re}\.rlx$", re = re),
+                format!(r"^apertium-{re}\.{re}\.rlx$", re = re),
+                format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re = re),
+                format!(r"^apertium-{re}\.{re}\.lexc$", re = re),
+                format!(r"^apertium-{re}-{re}\.{re}\.twol$", re = re),
+                format!(r"^apertium-{re}\.{re}\.twol$", re = re),
+            ]).size_limit(50_000_000)
+                .build()
+                .unwrap()
+        };
     }
 
     let matches = RE.matches(file_name.trim_right_matches(".xml"));
@@ -164,11 +147,11 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
             1 => Some(FileKind::Bidix),
             2 | 3 => Some(FileKind::MetaMonodix),
             4 => Some(FileKind::MetaBidix),
-            5 => Some(FileKind::Postdix),
-            6 | 7 => Some(FileKind::Rlx),
-            8 => Some(FileKind::Transfer),
-            9 => Some(FileKind::Lexc),
-            10 | 11 => Some(FileKind::Twol),
+            5 | 6 => Some(FileKind::Postdix),
+            7 | 8 => Some(FileKind::Rlx),
+            9 => Some(FileKind::Transfer),
+            10 => Some(FileKind::Lexc),
+            11 | 12 => Some(FileKind::Twol),
             _ => None,
         })
 }
