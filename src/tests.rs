@@ -7,7 +7,7 @@ extern crate tempfile;
 
 use self::tempfile::NamedTempFile;
 use rocket::http::Status;
-use rocket::local::Client;
+use rocket::local::{Client, LocalResponse};
 
 use super::rocket;
 
@@ -29,7 +29,7 @@ macro_rules! run_test {
     }};
 }
 
-fn parse_response(mut response: rocket::local::LocalResponse) -> serde_json::Value {
+fn parse_response(mut response: LocalResponse) -> serde_json::Value {
     serde_json::from_str(&response.body_string().expect("non-empty body"))
         .expect("valid JSON response")
 }
@@ -40,6 +40,32 @@ fn parse_i32_value(value: &serde_json::Value) -> i32 {
         .expect("value is string")
         .parse::<i32>()
         .expect("value is i32");
+}
+
+fn wait_for_ok<F>(client: &Client, endpoint: &str, handle_ok_response: F)
+where
+    F: Fn(LocalResponse) -> bool,
+{
+    let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
+    while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
+        let response = client.get(endpoint.clone()).dispatch();
+        match response.status() {
+            Status::TooManyRequests => {
+                println!("Waiting for OK... ({:?})", sleep_duration);
+            }
+            Status::Ok => {
+                if handle_ok_response(response) {
+                    return;
+                }
+            }
+            status => assert!(false, format!("recieved unexpected status: {:?}", status)),
+        }
+
+        sleep(sleep_duration);
+        sleep_duration *= 2;
+    }
+
+    assert!(false, "failed while waiting for completion");
 }
 
 #[test]
@@ -81,7 +107,7 @@ fn test_invalid_package_stats() {
 }
 
 #[test]
-fn test_module_stats() {
+fn test_get_module_stats() {
     let lang = "kaz";
     let module = format!("apertium-{}", lang);
     let endpoint = format!("/{}", module);
@@ -108,63 +134,50 @@ fn test_module_stats() {
             .expect("revision is i64");
         assert!(revision > 500, revision);
 
-        let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
-        while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
-            let response = client.get(endpoint.clone()).dispatch();
-            match response.status() {
-                Status::TooManyRequests => {
-                    println!("Waiting for OK... ({:?})", sleep_duration);
-                }
-                Status::Ok => {
-                    let mut body = parse_response(response);
-                    if body["in_progress"]
+        wait_for_ok(&client, &endpoint, |response| {
+            let mut body = parse_response(response);
+            if body["in_progress"]
+                .as_array()
+                .expect("valid in_progress")
+                .is_empty()
+            {
+                assert_eq!(body["name"], module);
+                let stats = body["stats"].as_array_mut().expect("valid stats");
+                assert_eq!(stats.len(), 5);
+                stats.sort_by_key(|entry| {
+                    entry["path"].as_str().expect("path is string").to_string()
+                });
+                assert_eq!(stats[0]["file_kind"], "Twol");
+                assert_eq!(stats[0]["stat_kind"], "Rules");
+                assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", lang));
+                let revision = stats[0]["revision"].as_i64().expect("revision is i64");
+                assert!(revision > 500, revision);
+                let value = parse_i32_value(&stats[0]["value"]);
+                assert!(value > 15, value);
+
+                let response = client.get(endpoint.clone()).dispatch();
+                assert_eq!(response.status(), Status::Ok);
+                let body = parse_response(response);
+                assert_eq!(body["name"], module);
+                assert!(
+                    body["in_progress"]
                         .as_array()
                         .expect("valid in_progress")
-                        .is_empty()
-                    {
-                        assert_eq!(body["name"], module);
-                        let mut stats = body["stats"].as_array_mut().expect("valid stats");
-                        assert_eq!(stats.len(), 5);
-                        stats.sort_by_key(|entry| {
-                            entry["path"].as_str().expect("path is string").to_string()
-                        });
-                        assert_eq!(stats[0]["file_kind"], "Twol");
-                        assert_eq!(stats[0]["stat_kind"], "Rules");
-                        assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", lang));
-                        let revision = stats[0]["revision"].as_i64().expect("revision is i64");
-                        assert!(revision > 500, revision);
-                        let value = parse_i32_value(&stats[0]["value"]);
-                        assert!(value > 15, value);
+                        .is_empty(),
+                    body["in_progress"].to_string()
+                );
+                assert_eq!(body["stats"].as_array().expect("valid stats").len(), 5);
 
-                        let response = client.get(endpoint.clone()).dispatch();
-                        assert_eq!(response.status(), Status::Ok);
-                        let mut body = parse_response(response);
-                        assert_eq!(body["name"], module);
-                        assert!(
-                            body["in_progress"]
-                                .as_array()
-                                .expect("valid in_progress")
-                                .is_empty(),
-                            body["in_progress"].to_string()
-                        );
-                        assert_eq!(body["stats"].as_array().expect("valid stats").len(), 5);
-
-                        return;
-                    }
-                }
-                status => assert!(false, format!("recieved unexpected status: {:?}", status)),
+                return true;
             }
 
-            sleep(sleep_duration);
-            sleep_duration *= 2;
-        }
-
-        assert!(false, "failed to fetch statistics before timeout");
+            return false;
+        });
     });
 }
 
 #[test]
-fn test_pair_stats() {
+fn test_get_pair_stats() {
     let lang = "kaz-tat";
     let module = format!("apertium-{}", lang);
     let endpoint = format!("/{}", module);
@@ -178,49 +191,37 @@ fn test_pair_stats() {
             .expect("valid in_progress");
         assert_eq!(in_progress.len(), 7);
 
-        let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
-        while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
-            let response = client.get(endpoint.clone()).dispatch();
-            match response.status() {
-                Status::TooManyRequests => {
-                    println!("Waiting for OK... ({:?})", sleep_duration);
-                }
-                Status::Ok => {
-                    let mut body = parse_response(response);
-                    if body["in_progress"]
-                        .as_array()
-                        .expect("valid in_progress")
-                        .is_empty()
-                    {
-                        assert_eq!(body["name"], module);
-                        let stats = body["stats"].as_array().expect("valid stats");
-                        assert_eq!(stats.len(), 11);
-                        assert!(
-                            stats
-                                .iter()
-                                .map(|entry| (
-                                    entry["stat_kind"].as_str().expect("kind is string"),
-                                    parse_i32_value(&entry["value"]),
-                                ))
-                                .all(|(kind, value)| kind == "Macros" || value > 0),
-                            body["stats"].to_string(),
-                        );
-                        return;
-                    }
-                }
-                status => assert!(false, format!("recieved unexpected status: {:?}", status)),
+        wait_for_ok(&client, &endpoint, |response| {
+            let mut body = parse_response(response);
+            if body["in_progress"]
+                .as_array()
+                .expect("valid in_progress")
+                .is_empty()
+            {
+                assert_eq!(body["name"], module);
+                let stats = body["stats"].as_array().expect("valid stats");
+                assert_eq!(stats.len(), 11);
+                assert!(
+                    stats
+                        .iter()
+                        .map(|entry| (
+                            entry["stat_kind"].as_str().expect("kind is string"),
+                            parse_i32_value(&entry["value"]),
+                        ))
+                        .all(|(kind, value)| kind == "Macros" || value > 0),
+                    body["stats"].to_string(),
+                );
+
+                return true;
             }
 
-            sleep(sleep_duration);
-            sleep_duration *= 2;
-        }
-
-        assert!(false, "failed to fetch statistics before timeout");
+            return false;
+        });
     });
 }
 
 #[test]
-fn test_dix_module_stats() {
+fn test_get_dix_module_stats() {
     let lang = "cat";
     let module = format!("apertium-{}", lang);
     let endpoint = format!("/{}/monodix", module);
@@ -234,14 +235,82 @@ fn test_dix_module_stats() {
             .expect("valid in_progress");
         assert_eq!(in_progress.len(), 1);
 
-        let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
-        while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
-            let response = client.get(endpoint.clone()).dispatch();
-            match response.status() {
-                Status::TooManyRequests => {
-                    println!("Waiting for OK... ({:?})", sleep_duration);
-                }
-                Status::Ok => {
+        wait_for_ok(&client, &endpoint, |response| {
+            let mut body = parse_response(response);
+            if body["in_progress"]
+                .as_array()
+                .expect("valid in_progress")
+                .is_empty()
+            {
+                assert_eq!(body["name"], module);
+                let stats = body["stats"].as_array().expect("valid stats");
+                assert_eq!(stats.len(), 2);
+                assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", lang));
+                assert_eq!(
+                    stats[0]["revision"].as_i64().expect("revision1 is i64"),
+                    stats[0]["revision"].as_i64().expect("revision2 is i64")
+                );
+                let value1 = parse_i32_value(&stats[0]["value"]);
+                assert!(value1 > 500, value1);
+                let value2 = parse_i32_value(&stats[1]["value"]);
+                assert!(value2 > 500, value2);
+
+                let response = client.get(endpoint.clone()).dispatch();
+                assert_eq!(response.status(), Status::Ok);
+                let mut body = parse_response(response);
+                assert_eq!(body["name"], module);
+                assert!(
+                    body["in_progress"]
+                        .as_array()
+                        .expect("valid in_progress")
+                        .is_empty(),
+                    body["in_progress"].to_string()
+                );
+                assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
+
+                return true;
+            }
+
+            return false;
+        });
+    });
+}
+
+#[test]
+fn test_post_package_stats() {
+    let lang = "cat";
+    let module = format!("apertium-{}", lang);
+    let endpoint = format!("/{}/monodix", module);
+
+    run_test!(|client| {
+        let response = client.get(endpoint.clone()).dispatch();
+        assert_eq!(response.status(), Status::Accepted);
+
+        wait_for_ok(&client, &endpoint, |response| {
+            let mut body = parse_response(response);
+            if body["in_progress"]
+                .as_array()
+                .expect("valid in_progress")
+                .is_empty()
+            {
+                let mut stats = body["stats"].as_array_mut().expect("valid stats");
+                stats.sort_by_key(|entry| {
+                    entry["stat_kind"]
+                        .as_str()
+                        .expect("stat_kind is string")
+                        .to_string()
+                });
+                let created = stats[0]["created"].as_str().expect("created is string");
+
+                let response = client.post(endpoint.clone()).dispatch();
+                assert_eq!(response.status(), Status::Accepted);
+                let mut body = parse_response(response);
+                let in_progress = body["in_progress"]
+                    .as_array_mut()
+                    .expect("valid in_progress");
+                assert_eq!(in_progress.len(), 1);
+
+                wait_for_ok(&client, &endpoint, |response| {
                     let mut body = parse_response(response);
                     if body["in_progress"]
                         .as_array()
@@ -249,41 +318,27 @@ fn test_dix_module_stats() {
                         .is_empty()
                     {
                         assert_eq!(body["name"], module);
-                        let stats = body["stats"].as_array().expect("valid stats");
-                        assert_eq!(stats.len(), 2);
-                        assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", lang));
-                        assert_eq!(
-                            stats[0]["revision"].as_i64().expect("revision1 is i64"),
-                            stats[0]["revision"].as_i64().expect("revision2 is i64")
-                        );
-                        let value1 = parse_i32_value(&stats[0]["value"]);
-                        assert!(value1 > 500, value1);
-                        let value2 = parse_i32_value(&stats[1]["value"]);
-                        assert!(value2 > 500, value2);
+                        let mut new_stats = body["stats"].as_array_mut().expect("valid stats");
+                        new_stats.sort_by_key(|entry| {
+                            entry["stat_kind"]
+                                .as_str()
+                                .expect("stat_kind is string")
+                                .to_string()
+                        });
+                        let new_created =
+                            new_stats[0]["created"].as_str().expect("created is string");
+                        assert!(new_created > created);
 
-                        let response = client.get(endpoint.clone()).dispatch();
-                        assert_eq!(response.status(), Status::Ok);
-                        let mut body = parse_response(response);
-                        assert_eq!(body["name"], module);
-                        assert!(
-                            body["in_progress"]
-                                .as_array()
-                                .expect("valid in_progress")
-                                .is_empty(),
-                            body["in_progress"].to_string()
-                        );
-                        assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
-
-                        return;
+                        return true;
                     }
-                }
-                status => assert!(false, format!("recieved unexpected status: {:?}", status)),
+
+                    return false;
+                });
+
+                return true;
             }
 
-            sleep(sleep_duration);
-            sleep_duration *= 2;
-        }
-
-        assert!(false, "failed to fetch statistics before timeout");
+            return false;
+        });
     });
 }
