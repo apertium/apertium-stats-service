@@ -1,8 +1,11 @@
 language: rust
+sudo: required
 rust:
   - nightly
 cache: cargo
 before_script:
+  - wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
+  - sudo apt-get install cg3
   - rustup component add rustfmt-preview
   - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
   - cargo install diesel_cli || echo 'diesel_cli already installed'
