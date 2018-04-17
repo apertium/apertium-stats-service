@@ -200,6 +200,22 @@ fn get_specific_stats(
         .map_err(|_| (None, Status::InternalServerError))?;
 
     if entries.is_empty() {
+        if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
+            if in_progress_tasks
+                .iter()
+                .filter(|task| task.kind == file_kind)
+                .count() != 0
+            {
+                return JsonResult::Err(
+                    Some(Json(json!({
+                        "name": name,
+                        "in_progress": in_progress_tasks,
+                    }))),
+                    Status::TooManyRequests,
+                );
+            }
+        }
+
         launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
     } else {
         let entries = entries_db::table

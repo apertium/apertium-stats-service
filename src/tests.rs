@@ -34,6 +34,14 @@ fn parse_response(mut response: rocket::local::LocalResponse) -> serde_json::Val
         .expect("valid JSON response")
 }
 
+fn parse_i32_value(value: &serde_json::Value) -> i32 {
+    return value
+        .as_str()
+        .expect("value is string")
+        .parse::<i32>()
+        .expect("value is i32");
+}
+
 #[test]
 fn test_usage() {
     run_test!(|client| {
@@ -125,11 +133,7 @@ fn test_module_stats() {
                         assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", lang));
                         let revision = stats[0]["revision"].as_i64().expect("revision is i64");
                         assert!(revision > 500, revision);
-                        let value = stats[0]["value"]
-                            .as_str()
-                            .expect("value is string")
-                            .parse::<i32>()
-                            .expect("value is i32");
+                        let value = parse_i32_value(&stats[0]["value"]);
                         assert!(value > 15, value);
 
                         let response = client.get(endpoint.clone()).dispatch();
@@ -148,7 +152,7 @@ fn test_module_stats() {
                         return;
                     }
                 }
-                _ => assert!(false, "recieved invalid status"),
+                status => assert!(false, format!("recieved unexpected status: {:?}", status)),
             }
 
             sleep(sleep_duration);
@@ -160,7 +164,7 @@ fn test_module_stats() {
 }
 
 #[test]
-fn test_pairs_stats() {
+fn test_pair_stats() {
     let lang = "kaz-tat";
     let module = format!("apertium-{}", lang);
     let endpoint = format!("/{}", module);
@@ -196,11 +200,7 @@ fn test_pairs_stats() {
                                 .iter()
                                 .map(|entry| (
                                     entry["stat_kind"].as_str().expect("kind is string"),
-                                    entry["value"]
-                                        .as_str()
-                                        .expect("value is string")
-                                        .parse::<i32>()
-                                        .expect("value is i32"),
+                                    parse_i32_value(&entry["value"]),
                                 ))
                                 .all(|(kind, value)| kind == "Macros" || value > 0),
                             body["stats"].to_string(),
@@ -208,7 +208,76 @@ fn test_pairs_stats() {
                         return;
                     }
                 }
-                _ => assert!(false, "recieved invalid status"),
+                status => assert!(false, format!("recieved unexpected status: {:?}", status)),
+            }
+
+            sleep(sleep_duration);
+            sleep_duration *= 2;
+        }
+
+        assert!(false, "failed to fetch statistics before timeout");
+    });
+}
+
+#[test]
+fn test_dix_module_stats() {
+    let lang = "cat";
+    let module = format!("apertium-{}", lang);
+    let endpoint = format!("/{}/monodix", module);
+
+    run_test!(|client| {
+        let response = client.get(endpoint.clone()).dispatch();
+        assert_eq!(response.status(), Status::Accepted);
+        let mut body = parse_response(response);
+        let in_progress = body["in_progress"]
+            .as_array_mut()
+            .expect("valid in_progress");
+        assert_eq!(in_progress.len(), 1);
+
+        let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
+        while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
+            let response = client.get(endpoint.clone()).dispatch();
+            match response.status() {
+                Status::TooManyRequests => {
+                    println!("Waiting for OK... ({:?})", sleep_duration);
+                }
+                Status::Ok => {
+                    let mut body = parse_response(response);
+                    if body["in_progress"]
+                        .as_array()
+                        .expect("valid in_progress")
+                        .is_empty()
+                    {
+                        assert_eq!(body["name"], module);
+                        let stats = body["stats"].as_array().expect("valid stats");
+                        assert_eq!(stats.len(), 2);
+                        assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", lang));
+                        assert_eq!(
+                            stats[0]["revision"].as_i64().expect("revision1 is i64"),
+                            stats[0]["revision"].as_i64().expect("revision2 is i64")
+                        );
+                        let value1 = parse_i32_value(&stats[0]["value"]);
+                        assert!(value1 > 500, value1);
+                        let value2 = parse_i32_value(&stats[1]["value"]);
+                        assert!(value2 > 500, value2);
+
+                        let response = client.get(endpoint.clone()).dispatch();
+                        assert_eq!(response.status(), Status::Ok);
+                        let mut body = parse_response(response);
+                        assert_eq!(body["name"], module);
+                        assert!(
+                            body["in_progress"]
+                                .as_array()
+                                .expect("valid in_progress")
+                                .is_empty(),
+                            body["in_progress"].to_string()
+                        );
+                        assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
+
+                        return;
+                    }
+                }
+                status => assert!(false, format!("recieved unexpected status: {:?}", status)),
             }
 
             sleep(sleep_duration);
