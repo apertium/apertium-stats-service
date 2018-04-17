@@ -15,7 +15,7 @@ script:
   - cargo clippy --verbose || cargo build --verbose # blocked by https://github.com/rust-lang-nursery/rust-clippy/issues/2594
   - cargo test --verbose
 after_success:
-  - cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  - cargo tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 matrix:
   include:
     - rust: nightly-2018-04-15
