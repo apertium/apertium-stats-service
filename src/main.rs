@@ -33,19 +33,19 @@ extern crate serde_json;
 
 use std::env;
 
+use self::diesel::prelude::*;
 use diesel::dsl::sql;
 use dotenv::dotenv;
-use rocket_contrib::{Json, Value};
-use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use rocket::http::{Method, Status};
 use rocket::State;
-use self::diesel::prelude::*;
+use rocket_contrib::{Json, Value};
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
 use db::DbConn;
-use schema::entries as entries_db;
-use worker::Worker;
-use util::{normalize_name, JsonResult, Params};
 use models::FileKind;
+use schema::entries as entries_db;
+use util::{normalize_name, JsonResult, Params};
+use worker::Worker;
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";

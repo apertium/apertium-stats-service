@@ -11,12 +11,12 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Output};
 use std::str;
 
-use regex::{Regex, RegexSet, RegexSetBuilder};
 use self::futures::{Future, Stream};
-use self::hyper_tls::HttpsConnector;
-use self::hyper::Client;
 use self::hyper::client::HttpConnector;
+use self::hyper::Client;
+use self::hyper_tls::HttpsConnector;
 use self::tempfile::NamedTempFile;
+use regex::{Regex, RegexSet, RegexSetBuilder};
 
 use super::models::{FileKind, StatKind};
 
@@ -116,19 +116,42 @@ pub fn get_file_stats(
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
     lazy_static! {
         static ref RE: RegexSet = RegexSetBuilder::new(&[
-            format!(r"^apertium-{re}\.{re}\.dix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.{re}-{re}\.dix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.{re}\.metadix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.{re}-{re}\.metadix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.post-{re}\.dix$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.{re}-{re}\.rlx$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}\.{re}\.rlx$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}\.{re}\.lexc$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}-{re}\.{re}\.twol$", re=super::LANG_CODE_RE),
-            format!(r"^apertium-{re}\.{re}\.twol$", re=super::LANG_CODE_RE),
-        ]).size_limit(50_000_000).build().unwrap();
+            format!(r"^apertium-{re}\.{re}\.dix$", re = super::LANG_CODE_RE),
+            format!(
+                r"^apertium-{re}-{re}\.{re}-{re}\.dix$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(r"^apertium-{re}\.{re}\.metadix$", re = super::LANG_CODE_RE),
+            format!(
+                r"^apertium-{re}-{re}\.{re}\.metadix$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(
+                r"^apertium-{re}-{re}\.{re}-{re}\.metadix$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(
+                r"^apertium-{re}-{re}\.post-{re}\.dix$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(
+                r"^apertium-{re}-{re}\.{re}-{re}\.rlx$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(r"^apertium-{re}\.{re}\.rlx$", re = super::LANG_CODE_RE),
+            format!(
+                r"^apertium-{re}-{re}\.{re}-{re}\.t\dx$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(r"^apertium-{re}\.{re}\.lexc$", re = super::LANG_CODE_RE),
+            format!(
+                r"^apertium-{re}-{re}\.{re}\.twol$",
+                re = super::LANG_CODE_RE
+            ),
+            format!(r"^apertium-{re}\.{re}\.twol$", re = super::LANG_CODE_RE),
+        ]).size_limit(50_000_000)
+            .build()
+            .unwrap();
     }
 
     let matches = RE.matches(file_name.trim_right_matches(".xml"));

@@ -1,8 +1,8 @@
 extern crate hyper;
 
 use regex::Regex;
-use std::collections::{BTreeSet, HashMap, HashSet};
 use std::collections::hash_map::Entry;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::iter::FromIterator;
 
