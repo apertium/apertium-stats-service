@@ -10,7 +10,7 @@ and distribution of statistics regarding Apertium packages via a RESTful API.
 Usage
 -----
 
-See `api.html` for the Swagger UI representation of the OpenAPI 3.0 spec.
+See [`api.html`][1] for the Swagger UI representation of the OpenAPI 3.0 spec.
 
 Running
 -------
@@ -18,7 +18,7 @@ Running
 Build with `cargo build` and run with `cargo run`.
 
 Edit `.env` to set environment parameters including those that control
-[Rocket configuration](https://rocket.rs/guide/configuration).
+[Rocket configuration][2].
 
 Use `cargo build --release` to create production binaries or use the
 provided `Dockerfile`:
@@ -31,3 +31,6 @@ Development
 
 Run `cargo fmt` to format code, `cargo clippy` to check for lint and
 `cargo test` to run tests.
+
+[1]: https://apertium.github.io/apertium-stats-service/
+[2]: https://rocket.rs/guide/configuration
