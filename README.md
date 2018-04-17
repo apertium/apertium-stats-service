@@ -16,7 +16,15 @@ Running
 -------
 
 Build with `cargo build` and run with `cargo run`.
-Edit `.env` to set environment parameters.
+
+Edit `.env` to set environment parameters including those that control
+[Rocket configuration](https://rocket.rs/guide/configuration).
+
+Use `cargo build --release` to create production binaries or use the
+provided `Dockerfile`:
+
+    docker build -t apertium-stats-service .
+    docker run apertium-stats-service --expose 8000 # or 80 for staging/prod
 
 Development
 -----------
