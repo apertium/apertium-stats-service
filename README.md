@@ -24,7 +24,7 @@ Use `cargo build --release` to create production binaries or use the
 provided `Dockerfile`:
 
     docker build -t apertium-stats-service .
-    docker run apertium-stats-service --expose 8000 # or 80 for staging/prod
+    docker run --expose 8000 apertium-stats-service # or 80 for staging/prod
 
 Development
 -----------

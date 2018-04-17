@@ -7,10 +7,10 @@ RUN apt-get -qq update && \
         curl \
         gcc \
         libc-dev \
+        libsqlite3-dev \
         libssl-dev \
         make \
-        pkg-config \
-        sqlite
+        pkg-config
 RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
 ENV PATH="/root/.cargo/bin:${PATH}"
 
