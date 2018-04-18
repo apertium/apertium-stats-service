@@ -12,6 +12,7 @@ mod util;
 mod worker;
 
 #[cfg(test)]
+#[macro_use]
 mod tests;
 
 extern crate chrono;
