@@ -79,7 +79,7 @@ fn test_usage() {
 }
 
 #[test]
-fn test_nonexistent_package_stats() {
+fn test_get_nonexistent_package_stats() {
     run_test!(|client| {
         let response = client.get("/apertium-xxx").dispatch();
         assert_eq!(response.status(), Status::BadRequest);
@@ -91,7 +91,7 @@ fn test_nonexistent_package_stats() {
 }
 
 #[test]
-fn test_invalid_package_stats() {
+fn test_get_invalid_package_stats() {
     run_test!(|client| {
         let response = client.get("/abcd").dispatch();
         assert_eq!(response.status(), Status::BadRequest);
@@ -101,6 +101,38 @@ fn test_invalid_package_stats() {
             json!({
                 "error": "Invalid package name: abcd",
                 "name": "abcd"
+            })
+        );
+    });
+}
+
+#[test]
+fn test_get_nonexistent_kind_package_stats() {
+    run_test!(|client| {
+        let response = client.get("/kaz/monodix").dispatch();
+        assert_eq!(response.status(), Status::NotFound);
+        let body = parse_response(response);
+        assert_eq!(
+            body,
+            json!({
+                "error": "No recognized files",
+                "name": "apertium-kaz"
+            })
+        );
+    });
+}
+
+#[test]
+fn test_get_invalid_kind_package_stats() {
+    run_test!(|client| {
+        let response = client.get("/kaz/dix").dispatch();
+        assert_eq!(response.status(), Status::BadRequest);
+        let body = parse_response(response);
+        assert_eq!(
+            body,
+            json!({
+                "error": "Invalid file kind: dix",
+                "name": "apertium-kaz"
             })
         );
     });
