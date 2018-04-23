@@ -31,16 +31,21 @@ extern crate rocket_cors;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate tokio_core;
+extern crate futures;
 
 use std::env;
+use std::thread;
 
-use self::diesel::prelude::*;
 use diesel::dsl::sql;
+use diesel::prelude::*;
 use dotenv::dotenv;
 use rocket::http::{Method, Status};
 use rocket::State;
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use tokio_core::reactor::Core;
+use futures::Future;
 
 use db::DbConn;
 use models::FileKind;
@@ -52,14 +57,18 @@ pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
+// lazy_static! {
+//     static ref CORE: Core = Core::new().unwrap();
+// }
+
 fn launch_tasks_and_reply(
     worker: &State<Worker>,
     name: String,
     kind: Option<&FileKind>,
-    recursive: bool,
+    options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&name, kind, recursive) {
-        Ok((ref new_tasks, ref in_progress_tasks))
+    match worker.launch_tasks(&name, kind, options.is_recursive()) {
+        Ok((ref new_tasks, ref in_progress_tasks, ref future))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
             JsonResult::Err(
@@ -70,13 +79,35 @@ fn launch_tasks_and_reply(
                 Status::NotFound,
             )
         }
-        Ok((ref _new_tasks, ref in_progress_tasks)) => JsonResult::Err(
-            Some(Json(json!({
-                    "name": name,
-                    "in_progress": in_progress_tasks,
-                }))),
-            Status::Accepted,
-        ),
+        Ok((ref _new_tasks, ref in_progress_tasks, ref future)) => {
+            if options.is_async() {
+                let lost_future = future.map(|_| ()).map_err(|_| ());
+                Core::new().unwrap().remote().spawn(|handle| lost_future);
+                // thread::spawn(|| {
+                //     let mut core = Core::new().unwrap();
+                //     core.run(*future);
+                // });
+
+                JsonResult::Err(
+                    Some(Json(json!({
+                            "name": name,
+                            "in_progress": in_progress_tasks,
+                        }))),
+                    Status::Accepted,
+                )
+            } else {
+                let mut core = Core::new().unwrap();
+
+                match core.run(*future) {
+                    Ok(stats) => JsonResult::Ok(Json(json!({
+                        "name": name,
+                        "stats": stats,
+                        "in_progress": vec![],
+                    }))),
+                    Err(err) => JsonResult::Err(None, Status::InternalServerError),
+                }
+            }
+        }
         Err(error) => JsonResult::Err(
             Some(Json(json!({
                     "name": name,
@@ -138,7 +169,6 @@ fn get_stats(
     worker: State<Worker>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
-    let recursive = params.unwrap_or_default().is_recursive();
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -157,7 +187,7 @@ fn get_stats(
                 Status::TooManyRequests,
             )
         } else {
-            launch_tasks_and_reply(&worker, name, None, recursive)
+            launch_tasks_and_reply(&worker, name, None, params.unwrap_or_default())
         }
     } else {
         let entries = entries_db::table
@@ -190,7 +220,6 @@ fn get_specific_stats(
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
-    let recursive = params.unwrap_or_default().is_recursive();
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -217,7 +246,7 @@ fn get_specific_stats(
             }
         }
 
-        launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
+        launch_tasks_and_reply(&worker, name, Some(&file_kind), params.unwrap_or_default())
     } else {
         let entries = entries_db::table
             .filter(entries_db::name.eq(&name))
@@ -247,8 +276,7 @@ fn get_specific_stats_no_params(
 #[post("/<name>?<params>")]
 fn calculate_stats(name: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
-    let recursive = params.unwrap_or_default().is_recursive();
-    launch_tasks_and_reply(&worker, name, None, recursive)
+    launch_tasks_and_reply(&worker, name, None, params.unwrap_or_default())
 }
 
 #[post("/<name>")]
@@ -265,8 +293,7 @@ fn calculate_specific_stats(
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
-    let recursive = params.unwrap_or_default().is_recursive();
-    launch_tasks_and_reply(&worker, name, Some(&file_kind), recursive)
+    launch_tasks_and_reply(&worker, name, Some(&file_kind), params.unwrap_or_default())
 }
 
 #[post("/<name>/<kind>")]
