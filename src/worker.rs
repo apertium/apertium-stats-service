@@ -1,25 +1,24 @@
 extern crate diesel;
-extern crate futures;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate quick_xml;
-extern crate tokio_core;
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::process::{Command, Output};
 use std::str;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use self::diesel::prelude::*;
+use futures::future::join_all;
+use futures::Future;
 use self::hyper::Client;
 use self::hyper_tls::HttpsConnector;
 use self::quick_xml::events::attributes::Attribute;
 use self::quick_xml::events::Event;
 use self::quick_xml::reader::Reader;
-use self::tokio_core::reactor::Core;
 use chrono::{NaiveDateTime, Utc};
+use tokio_core::reactor::Core;
 
 use super::models::{FileKind, NewEntry};
 use super::schema::entries;
@@ -171,55 +170,56 @@ impl Worker {
         }
     }
 
-    fn launch_task(&self, package_name: &str, task: &Task) {
+    fn launch_task(&self, package_name: &str, task: &Task) -> impl Future<Item = Vec<NewEntry>, Error = ()> {
         let current_tasks_guard = self.current_tasks.clone();
         let pool = self.pool.clone();
         let task = task.clone();
         let package_name = package_name.to_string();
 
-        thread::spawn(move || {
-            let mut core = Core::new().unwrap();
-            let client = Client::configure()
-                .connector(HttpsConnector::new(4, &core.handle()).unwrap())
-                .build(&core.handle());
+        let mut core = Core::new().unwrap();
+        let client = Client::configure()
+            .connector(HttpsConnector::new(4, &core.handle()).unwrap())
+            .build(&core.handle());
 
-            match core.run(get_file_stats(
-                client,
-                task.path.clone(),
-                &package_name,
-                task.kind.clone(),
-            )) {
-                Ok(stats) => {
-                    let conn = pool.get().unwrap();
-                    let new_entries = stats
-                        .iter()
-                        .map(|&(ref kind, ref value)| NewEntry {
-                            name: &package_name,
-                            created: Utc::now().naive_utc(),
-                            requested: &task.created,
-                            path: &task.path,
-                            stat_kind: kind.clone(),
-                            file_kind: task.kind.clone(),
-                            value: value.clone(),
-                            revision: &task.revision,
-                        })
-                        .collect::<Vec<_>>();
-                    diesel::insert_into(entries::table)
-                        .values(&new_entries)
-                        .execute(&*conn)
-                        .unwrap();
-                }
-                Err(err) => {
-                    println!(
-                        "Error executing task for {}/{}: {:?}",
-                        &package_name, &task.path, err
-                    );
-                }
-            };
+        get_file_stats(client, task.path.clone(), &package_name, task.kind.clone()).then(
+            |maybe_stats| {
+                let mut current_tasks = current_tasks_guard.lock().unwrap();
+                Worker::record_task_completion(current_tasks.entry(package_name), task);
 
-            let mut current_tasks = current_tasks_guard.lock().unwrap();
-            Worker::record_task_completion(current_tasks.entry(package_name), task);
-        });
+                match maybe_stats {
+                    Ok(stats) => {
+                        let conn = pool.get().unwrap();
+                        let new_entries = stats
+                            .iter()
+                            .map(|&(ref kind, ref value)| NewEntry {
+                                name: &package_name,
+                                created: Utc::now().naive_utc(),
+                                requested: &task.created,
+                                path: &task.path,
+                                stat_kind: kind.clone(),
+                                file_kind: task.kind.clone(),
+                                value: value.clone(),
+                                revision: &task.revision,
+                            })
+                            .collect::<Vec<_>>();
+                        diesel::insert_into(entries::table)
+                            .values(&new_entries)
+                            .execute(&*conn)
+                            .unwrap();
+
+                        Ok(new_entries)
+                    }
+                    Err(err) => {
+                        println!(
+                            "Error executing task for {}/{}: {:?}",
+                            &package_name, &task.path, err
+                        );
+
+                        Ok(vec![])
+                    }
+                }
+            },
+        )
     }
 
     pub fn launch_tasks(
@@ -227,7 +227,7 @@ impl Worker {
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
-    ) -> Result<(Tasks, Tasks), String> {
+    ) -> Result<(Tasks, Tasks, impl Future<Item = Vec<&NewEntry>>), String> {
         list_files(name, recursive).and_then(|files| {
             let mut current_tasks = self.current_tasks.lock().unwrap();
             let current_package_tasks = current_tasks.entry(name.to_string());
@@ -261,11 +261,16 @@ impl Worker {
                 })
                 .collect::<Vec<_>>();
 
-            for task in &new_tasks {
-                self.launch_task(name, task);
-            }
+            let future = join_all(
+                new_tasks
+                    .iter()
+                    .map(|task| self.launch_task(name, task))
+                    .collect::<Vec<_>>(),
+            ).map(|entries| entries.iter().flat_map(|x| x).collect());
+            let (new_tasks, in_progress_tasks) =
+                Worker::record_new_tasks(current_package_tasks, new_tasks)?;
 
-            Worker::record_new_tasks(current_package_tasks, new_tasks)
+            Ok((new_tasks, in_progress_tasks, future))
         })
     }
 

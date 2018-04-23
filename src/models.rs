@@ -60,7 +60,7 @@ pub struct Entry {
     pub value: String,
 }
 
-#[derive(Queryable, Insertable, Debug)]
+#[derive(Queryable, Insertable, Debug, Serialize)]
 #[table_name = "entries"]
 pub struct NewEntry<'a> {
     pub requested: &'a NaiveDateTime,

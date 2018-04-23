@@ -74,12 +74,16 @@ impl<'r> Responder<'r> for JsonResult {
 #[derive(FromForm)]
 pub struct Params {
     pub recursive: Option<bool>,
-    pub wait: Option<bool>,
+    pub async: Option<bool>,
 }
 
 impl Params {
     pub fn is_recursive(&self) -> bool {
         self.recursive.unwrap_or(false)
+    }
+
+    pub fn is_async(&self) -> bool {
+        self.async.unwrap_or(true)
     }
 }
 
@@ -87,7 +91,7 @@ impl Default for Params {
     fn default() -> Self {
         Self {
             recursive: None,
-            wait: None,
+            async: Some(true),
         }
     }
 }
