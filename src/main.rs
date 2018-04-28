@@ -45,8 +45,8 @@ use rocket::State;
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use tokio::prelude::Future;
-use tokio_core::reactor::Core;
 use tokio::runtime::Runtime;
+use tokio_core::reactor::Core;
 
 use db::DbConn;
 use models::FileKind;
