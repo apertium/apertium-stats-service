@@ -30,12 +30,12 @@ extern crate rocket_contrib;
 extern crate rocket_cors;
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
-extern crate tokio_core;
 extern crate futures;
+extern crate serde_json;
+extern crate tokio;
+extern crate tokio_core;
 
 use std::env;
-use std::thread;
 
 use diesel::dsl::sql;
 use diesel::prelude::*;
@@ -44,22 +44,23 @@ use rocket::http::{Method, Status};
 use rocket::State;
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use tokio::prelude::Future;
 use tokio_core::reactor::Core;
-use futures::Future;
+use tokio::runtime::Runtime;
 
 use db::DbConn;
 use models::FileKind;
 use schema::entries as entries_db;
 use util::{normalize_name, JsonResult, Params};
-use worker::Worker;
+use worker::{Task, Worker};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
-// lazy_static! {
-//     static ref CORE: Core = Core::new().unwrap();
-// }
+lazy_static! {
+    static ref RUNTIME: Runtime = Runtime::new().unwrap();
+}
 
 fn launch_tasks_and_reply(
     worker: &State<Worker>,
@@ -67,8 +68,8 @@ fn launch_tasks_and_reply(
     kind: Option<&FileKind>,
     options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&name, kind, options.is_recursive()) {
-        Ok((ref new_tasks, ref in_progress_tasks, ref future))
+    match worker.launch_tasks(&RUNTIME, &name, kind, options.is_recursive()) {
+        Ok((ref new_tasks, ref in_progress_tasks, ref _future))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
             JsonResult::Err(
@@ -79,14 +80,10 @@ fn launch_tasks_and_reply(
                 Status::NotFound,
             )
         }
-        Ok((ref _new_tasks, ref in_progress_tasks, ref future)) => {
+        Ok((_new_tasks, in_progress_tasks, future)) => {
             if options.is_async() {
-                let lost_future = future.map(|_| ()).map_err(|_| ());
-                Core::new().unwrap().remote().spawn(|handle| lost_future);
-                // thread::spawn(|| {
-                //     let mut core = Core::new().unwrap();
-                //     core.run(*future);
-                // });
+                let detached_future = future.map(|_| ()).map_err(|_| ());
+                RUNTIME.executor().spawn(detached_future);
 
                 JsonResult::Err(
                     Some(Json(json!({
@@ -98,13 +95,13 @@ fn launch_tasks_and_reply(
             } else {
                 let mut core = Core::new().unwrap();
 
-                match core.run(*future) {
+                match core.run(future) {
                     Ok(stats) => JsonResult::Ok(Json(json!({
                         "name": name,
                         "stats": stats,
-                        "in_progress": vec![],
+                        "in_progress": vec![] as Vec<Task>,
                     }))),
-                    Err(err) => JsonResult::Err(None, Status::InternalServerError),
+                    Err(_err) => JsonResult::Err(None, Status::InternalServerError),
                 }
             }
         }

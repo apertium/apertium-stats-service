@@ -11,12 +11,15 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Output};
 use std::str;
 
-use self::futures::{Future, Stream};
+// use self::futures::{Future, Stream, FutureExt};
 use self::hyper::client::HttpConnector;
 use self::hyper::Client;
 use self::hyper_tls::HttpsConnector;
 use self::tempfile::NamedTempFile;
 use regex::{Regex, RegexSet, RegexSetBuilder};
+use tokio::prelude::{Future, Stream};
+// use tokio::prelude::FutureExt;
+// use tokio::prelude::Future;
 
 use super::models::{FileKind, StatKind};
 
@@ -49,7 +52,7 @@ pub fn get_file_stats(
         .map_err(StatsError::Hyper)
         .and_then(|response| {
             response
-                .body()
+                .into_body()
                 .concat2()
                 .map_err(StatsError::Hyper)
                 .and_then(move |body| match file_kind {
