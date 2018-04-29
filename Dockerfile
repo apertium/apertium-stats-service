@@ -23,4 +23,5 @@ RUN cargo build --release
 RUN cargo install diesel_cli --no-default-features --features "sqlite"
 RUN diesel database setup
 
-CMD ["cargo", "run"]
+ENTRYPOINT ["cargo"]
+CMD ["run"]
