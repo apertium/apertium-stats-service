@@ -20,6 +20,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Package'
       - $ref: '#/components/parameters/Recursive'
+      - $ref: '#/components/parameters/Async'
     get:
       summary: Returns statistics for the specified package
       responses:
@@ -51,6 +52,7 @@ paths:
       - $ref: '#/components/parameters/Package'
       - $ref: '#/components/parameters/Kind'
       - $ref: '#/components/parameters/Recursive'
+      - $ref: '#/components/parameters/Async'
     get:
       summary: Returns statistics of the specified kind for the specified package
       responses:
@@ -154,6 +156,13 @@ components:
       schema:
         type: boolean
         default: false
+    Async:
+      name: async
+      in: query
+      description: whether statistics compilation should be asynchronous
+      schema:
+        type: boolean
+        default: true
   schemas:
     Error:
       type: object
