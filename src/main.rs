@@ -184,6 +184,7 @@ fn get_stats(
                 Status::TooManyRequests,
             )
         } else {
+            drop(conn);
             launch_tasks_and_reply(&worker, name, None, params.unwrap_or_default())
         }
     } else {
@@ -243,6 +244,7 @@ fn get_specific_stats(
             }
         }
 
+        drop(conn);
         launch_tasks_and_reply(&worker, name, Some(&file_kind), params.unwrap_or_default())
     } else {
         let entries = entries_db::table
