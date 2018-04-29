@@ -310,9 +310,8 @@ fn calculate_specific_stats_no_params(
 fn create_logger() -> Logger {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-
-    Logger::root(drain, o!())
+    let async_drain = slog_async::Async::new(drain).build().fuse();
+    Logger::root(async_drain, o!())
 }
 
 fn rocket(database_url: String) -> rocket::Rocket {
