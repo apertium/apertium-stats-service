@@ -197,7 +197,7 @@ impl Worker {
 
                 match maybe_stats {
                     Ok(stats) => {
-                        let conn = pool.get().unwrap();
+                        let conn = pool.get().expect("database connection");
                         let new_entries = stats
                             .iter()
                             .map(move |&(ref kind, ref value)| NewEntry {
@@ -279,20 +279,6 @@ impl Worker {
             ).map(|entries| entries.iter().flat_map(|x| x.clone()).collect());
             let (new_tasks, in_progress_tasks) =
                 Worker::record_new_tasks(current_package_tasks, new_tasks)?;
-
-            // if true { // async
-            //     let hidden_future = future.map(|_| ()).map_err(|_| ());
-            //     let boxed_future: Box<Future<Item = (), Error = ()>> = Box::new(hidden_future);
-            //     let cookie_future: Arc<Future<Item = (), Error = ()>> = Arc::new(boxed_future);
-            //     // Core::new().unwrap().remote().spawn(move |_| cookie_future);
-            //     // thread::spawn(move || {
-            //     //     // future.wait
-            //     //     // let mut core = Core::new().unwrap();
-            //     //     // core.run(future);
-            //     // });
-            // } else {
-            //     1;
-            // }
 
             Ok((new_tasks, in_progress_tasks, future))
         })
