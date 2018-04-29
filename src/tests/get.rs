@@ -283,7 +283,7 @@ fn sync_package_stats() {
 
     run_test!(|client| {
         let response = client.get(endpoint.clone()).dispatch();
-        assert_eq!(response.status(), Status::Accepted);
+        assert_eq!(response.status(), Status::Ok);
         let body = parse_response(response);
         let in_progress = body["in_progress"]
             .as_array()
