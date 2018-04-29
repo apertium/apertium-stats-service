@@ -30,7 +30,6 @@ extern crate rocket_contrib;
 extern crate rocket_cors;
 #[macro_use]
 extern crate serde_derive;
-extern crate futures;
 extern crate serde_json;
 extern crate tokio;
 extern crate tokio_core;
@@ -93,7 +92,7 @@ fn launch_tasks_and_reply(
                     Status::Accepted,
                 )
             } else {
-                let mut core = Core::new().unwrap();
+                let mut core = Core::new().unwrap(); // TODO: stop using tokio-core
 
                 match core.run(future) {
                     Ok(stats) => JsonResult::Ok(Json(json!({

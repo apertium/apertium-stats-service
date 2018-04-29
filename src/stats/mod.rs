@@ -1,7 +1,6 @@
 mod lexc;
 mod xml;
 
-extern crate futures;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate tempfile;
@@ -11,15 +10,12 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Output};
 use std::str;
 
-// use self::futures::{Future, Stream, FutureExt};
 use self::hyper::client::HttpConnector;
 use self::hyper::Client;
 use self::hyper_tls::HttpsConnector;
 use self::tempfile::NamedTempFile;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use tokio::prelude::{Future, Stream};
-// use tokio::prelude::FutureExt;
-// use tokio::prelude::Future;
 
 use super::models::{FileKind, StatKind};
 
