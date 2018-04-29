@@ -275,3 +275,23 @@ fn recursive_package_stats() {
         });
     });
 }
+
+#[test]
+fn sync_package_stats() {
+    let module = format!("apertium-{}", TEST_LT_MODULE);
+    let endpoint = format!("/{}/monodix?async=false", module);
+
+    run_test!(|client| {
+        let response = client.get(endpoint.clone()).dispatch();
+        assert_eq!(response.status(), Status::Accepted);
+        let body = parse_response(response);
+        let in_progress = body["in_progress"]
+            .as_array()
+            .expect("valid in_progress");
+        assert_eq!(in_progress.len(), 0);
+
+        assert_eq!(body["name"], module);
+        let stats = body["stats"].as_array().expect("valid stats");
+        assert_eq!(stats.len(), 2);
+    });
+}
