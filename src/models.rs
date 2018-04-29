@@ -1,5 +1,6 @@
 extern crate serde_json;
 
+use std::fmt;
 use std::str;
 
 use chrono::NaiveDateTime;
@@ -33,6 +34,12 @@ impl FileKind {
             "twol" => Ok(FileKind::Twol),
             _ => Err(format!("Invalid file kind: {}", s)),
         }
+    }
+}
+
+impl fmt::Display for FileKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
     }
 }
 

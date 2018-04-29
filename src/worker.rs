@@ -16,6 +16,7 @@ use self::quick_xml::events::attributes::Attribute;
 use self::quick_xml::events::Event;
 use self::quick_xml::reader::Reader;
 use chrono::{NaiveDateTime, Utc};
+use slog::Logger;
 use tokio::prelude::future::join_all;
 use tokio::prelude::Future;
 use tokio::runtime::Runtime;
@@ -24,7 +25,7 @@ use super::models::{FileKind, NewEntry};
 use super::schema::entries;
 use super::stats::{get_file_kind, get_file_stats};
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Task {
     pub kind: FileKind,
     pub path: String,
@@ -36,6 +37,7 @@ type Tasks = Vec<Task>;
 pub struct Worker {
     pool: super::db::Pool,
     current_tasks: Arc<Mutex<HashMap<String, Tasks>>>,
+    logger: Logger,
 }
 
 fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String> {
@@ -127,10 +129,11 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
 }
 
 impl Worker {
-    pub fn new(pool: super::db::Pool) -> Worker {
+    pub fn new(pool: super::db::Pool, logger: Logger) -> Worker {
         Worker {
             pool,
             current_tasks: Arc::new(Mutex::new(HashMap::new())),
+            logger,
         }
     }
 
@@ -172,6 +175,7 @@ impl Worker {
 
     fn launch_task(
         &self,
+        logger: &Logger,
         runtime: &Runtime,
         package_name: &str,
         task: &Task,
@@ -180,53 +184,55 @@ impl Worker {
         let pool = self.pool.clone();
         let task = task.clone();
         let package_name = package_name.to_string();
+        let logger = logger.new(o!(
+            "path" => task.path.clone(),
+            "kind" => task.kind.to_string(),
+        ));
 
         let client = Client::builder()
             .executor(runtime.executor())
             .build(HttpsConnector::new(4).unwrap());
 
-        get_file_stats(client, task.path.clone(), &package_name, task.kind.clone()).then(
-            move |maybe_stats| {
-                let mut current_tasks = current_tasks_guard.lock().unwrap();
-                Worker::record_task_completion(
-                    current_tasks.entry(package_name.clone()),
-                    task.clone(),
-                );
+        get_file_stats(
+            &logger,
+            client,
+            task.path.clone(),
+            &package_name,
+            task.kind.clone(),
+        ).then(move |maybe_stats| {
+            let mut current_tasks = current_tasks_guard.lock().unwrap();
+            Worker::record_task_completion(current_tasks.entry(package_name.clone()), task.clone());
 
-                match maybe_stats {
-                    Ok(stats) => {
-                        let conn = pool.get().expect("database connection");
-                        let new_entries = stats
-                            .iter()
-                            .map(move |&(ref kind, ref value)| NewEntry {
-                                name: package_name.clone(),
-                                created: Utc::now().naive_utc(),
-                                requested: task.created,
-                                path: task.path.clone(),
-                                stat_kind: kind.clone(),
-                                file_kind: task.kind.clone(),
-                                value: value.clone(),
-                                revision: task.revision,
-                            })
-                            .collect::<Vec<_>>();
-                        diesel::insert_into(entries::table)
-                            .values(&new_entries)
-                            .execute(&*conn)
-                            .unwrap();
+            match maybe_stats {
+                Ok(stats) => {
+                    debug!(logger, "Completed executing task");
+                    let conn = pool.get().expect("database connection");
+                    let new_entries = stats
+                        .iter()
+                        .map(move |&(ref kind, ref value)| NewEntry {
+                            name: package_name.clone(),
+                            created: Utc::now().naive_utc(),
+                            requested: task.created,
+                            path: task.path.clone(),
+                            stat_kind: kind.clone(),
+                            file_kind: task.kind.clone(),
+                            value: value.clone(),
+                            revision: task.revision,
+                        })
+                        .collect::<Vec<_>>();
+                    diesel::insert_into(entries::table)
+                        .values(&new_entries)
+                        .execute(&*conn)
+                        .unwrap();
 
-                        Ok(new_entries)
-                    }
-                    Err(err) => {
-                        println!(
-                            "Error executing task for {}/{}: {:?}",
-                            &package_name, &task.path, err
-                        );
-
-                        Ok(vec![])
-                    }
+                    Ok(new_entries)
                 }
-            },
-        )
+                Err(err) => {
+                    error!(logger, "Error executing task: {:?}", err);
+                    Ok(vec![])
+                }
+            }
+        })
     }
 
     pub fn launch_tasks(
@@ -236,6 +242,11 @@ impl Worker {
         maybe_kind: Option<&FileKind>,
         recursive: bool,
     ) -> Result<(Tasks, Tasks, impl Future<Item = Vec<NewEntry>>), String> {
+        let logger = self.logger.new(o!(
+            "package" => name.to_string().clone(),
+            "recursive" => recursive.clone(),
+        ));
+
         list_files(name, recursive).and_then(|files| {
             let mut current_tasks = self.current_tasks.lock().unwrap();
             let current_package_tasks = current_tasks.entry(name.to_string());
@@ -268,11 +279,17 @@ impl Worker {
                     })
                 })
                 .collect::<Vec<_>>();
+            info!(
+                logger,
+                "Spawning {} tasks: {:?}",
+                new_tasks.len(),
+                new_tasks,
+            );
 
             let future = join_all(
                 new_tasks
                     .iter()
-                    .map(|task| self.launch_task(runtime, name, task))
+                    .map(|task| self.launch_task(&logger, runtime, name, task))
                     .collect::<Vec<_>>(),
             ).map(|entries| entries.iter().flat_map(|x| x.clone()).collect());
             let (new_tasks, in_progress_tasks) =
