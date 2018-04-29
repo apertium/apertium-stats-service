@@ -3,6 +3,7 @@
 #![deny(clippy)]
 #![allow(needless_pass_by_value)]
 #![allow(suspicious_else_formatting)]
+#![allow(print_literal)]
 
 mod db;
 mod models;
