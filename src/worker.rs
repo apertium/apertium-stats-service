@@ -181,8 +181,6 @@ impl Worker {
         let task = task.clone();
         let package_name = package_name.to_string();
 
-        // let runtime = Runtime::new().unwrap();
-
         let client = Client::builder()
             .executor(runtime.executor())
             .build(HttpsConnector::new(4).unwrap());
