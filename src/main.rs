@@ -33,6 +33,10 @@ extern crate rocket_cors;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tokio;
+#[macro_use]
+extern crate slog;
+extern crate slog_async;
+extern crate slog_term;
 
 use std::env;
 
@@ -43,6 +47,8 @@ use rocket::http::{Method, Status};
 use rocket::State;
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use slog::Drain;
+use slog::Logger;
 use tokio::executor::current_thread::CurrentThread;
 use tokio::prelude::Future;
 use tokio::runtime::Runtime;
@@ -301,9 +307,18 @@ fn calculate_specific_stats_no_params(
     calculate_specific_stats(name, kind, None, worker)
 }
 
+fn create_logger() -> Logger {
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::FullFormat::new(decorator).build().fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
+
+    Logger::root(drain, o!())
+}
+
 fn rocket(database_url: String) -> rocket::Rocket {
     let pool = db::init_pool(&database_url);
-    let worker = Worker::new(pool.clone());
+    let logger = create_logger();
+    let worker = Worker::new(pool.clone(), logger.clone());
 
     let cors_options = rocket_cors::Cors {
         allowed_origins: AllowedOrigins::all(),
@@ -319,6 +334,7 @@ fn rocket(database_url: String) -> rocket::Rocket {
     rocket::ignite()
         .manage(pool)
         .manage(worker)
+        .manage(logger)
         .mount(
             "/",
             routes![

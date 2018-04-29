@@ -1,10 +1,12 @@
 extern crate hyper;
 
-use regex::Regex;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::iter::FromIterator;
+
+use regex::Regex;
+use slog::Logger;
 
 use super::StatsError;
 
@@ -137,7 +139,10 @@ fn parse_line(
     }
 }
 
-pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsError> {
+pub fn get_stats(
+    logger: &Logger,
+    body: hyper::Chunk,
+) -> Result<Vec<(StatKind, String)>, StatsError> {
     let mut current_lexicon: Option<String> = None;
     let mut lexicons: Lexicons = HashMap::new();
 
@@ -167,7 +172,7 @@ pub fn get_stats(body: hyper::Chunk) -> Result<Vec<(StatKind, String)>, StatsErr
                 current_lexicon.as_ref().unwrap(),
                 &mut lexicons,
             ) {
-                println!("{:?}", err); // TODO: log
+                warn!(logger, "Error parsing lexc file: {:?}", err);
             }
         }
     }

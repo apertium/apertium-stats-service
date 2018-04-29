@@ -14,6 +14,7 @@ use self::hyper::Client;
 use self::hyper_tls::HttpsConnector;
 use self::tempfile::NamedTempFile;
 use regex::{Regex, RegexSet, RegexSetBuilder};
+use slog::Logger;
 use tokio::prelude::{Future, Stream};
 
 use super::models::{FileKind, StatKind};
@@ -29,6 +30,7 @@ pub enum StatsError {
 }
 
 pub fn get_file_stats(
+    logger: &Logger,
     client: Client<HttpsConnector<HttpConnector>>,
     file_path: String,
     package_name: &str,
@@ -41,6 +43,7 @@ pub fn get_file_stats(
         file_path
     ).parse()
         .unwrap();
+    let logger = logger.clone();
 
     client
         .get(url)
@@ -106,7 +109,7 @@ pub fn get_file_stats(
                             .count();
                         Ok(vec![(StatKind::Rules, rule_count.to_string())])
                     }
-                    FileKind::Lexc => self::lexc::get_stats(body),
+                    FileKind::Lexc => self::lexc::get_stats(&logger, body),
                 })
         })
 }
