@@ -4,7 +4,6 @@ mod xml;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate tempfile;
-extern crate tokio_core;
 
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Output};

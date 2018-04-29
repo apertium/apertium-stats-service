@@ -33,7 +33,6 @@ extern crate rocket_cors;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tokio;
-extern crate tokio_core;
 
 use std::env;
 
@@ -44,9 +43,9 @@ use rocket::http::{Method, Status};
 use rocket::State;
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use tokio::executor::current_thread::CurrentThread;
 use tokio::prelude::Future;
 use tokio::runtime::Runtime;
-use tokio_core::reactor::Core;
 
 use db::DbConn;
 use models::FileKind;
@@ -93,9 +92,7 @@ fn launch_tasks_and_reply(
                     Status::Accepted,
                 )
             } else {
-                let mut core = Core::new().unwrap(); // TODO: stop using tokio-core
-
-                match core.run(future) {
+                match CurrentThread::new().block_on(future) {
                     Ok(stats) => JsonResult::Ok(Json(json!({
                         "name": name,
                         "stats": stats,
