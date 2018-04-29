@@ -158,7 +158,7 @@ impl Worker {
         }
     }
 
-    fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: Task) {
+    fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {
         if let Entry::Occupied(mut occupied) = current_package_tasks {
             if let Some(position) = occupied.get().iter().position(
                 |&Task {
@@ -201,22 +201,22 @@ impl Worker {
             task.kind.clone(),
         ).then(move |maybe_stats| {
             let mut current_tasks = current_tasks_guard.lock().unwrap();
-            Worker::record_task_completion(current_tasks.entry(package_name.clone()), task.clone());
+            Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
 
             match maybe_stats {
                 Ok(stats) => {
                     debug!(logger, "Completed executing task");
                     let conn = pool.get().expect("database connection");
                     let new_entries = stats
-                        .iter()
-                        .map(move |&(ref kind, ref value)| NewEntry {
+                        .into_iter()
+                        .map(|(kind, value)| NewEntry {
                             name: package_name.clone(),
                             created: Utc::now().naive_utc(),
                             requested: task.created,
                             path: task.path.clone(),
-                            stat_kind: kind.clone(),
+                            stat_kind: kind,
                             file_kind: task.kind.clone(),
-                            value: value.clone(),
+                            value,
                             revision: task.revision,
                         })
                         .collect::<Vec<_>>();
@@ -244,7 +244,7 @@ impl Worker {
     ) -> Result<(Tasks, Tasks, impl Future<Item = Vec<NewEntry>>), String> {
         let logger = self.logger.new(o!(
             "package" => name.to_string().clone(),
-            "recursive" => recursive.clone(),
+            "recursive" => recursive,
         ));
 
         list_files(name, recursive).and_then(|files| {
@@ -252,23 +252,20 @@ impl Worker {
             let current_package_tasks = current_tasks.entry(name.to_string());
 
             let new_tasks = files
-                .iter()
-                .filter_map(|&(ref file, revision)| {
-                    get_file_kind(file).and_then(|file_kind| {
+                .into_iter()
+                .filter_map(|(file, revision)| {
+                    get_file_kind(&file).and_then(|file_kind| {
                         let requested_kind = maybe_kind.map_or(true, |kind| kind == &file_kind);
                         let in_progress = match current_package_tasks {
-                            Entry::Occupied(ref occupied) => occupied.get().iter().any(
-                                |&Task {
-                                     ref kind, ref path, ..
-                                 }| {
-                                    kind == &file_kind && path == file
-                                },
-                            ),
+                            Entry::Occupied(ref occupied) => occupied
+                                .get()
+                                .into_iter()
+                                .any(|Task { kind, path, .. }| kind == &file_kind && path == &file),
                             _ => false,
                         };
                         if requested_kind && !in_progress {
                             Some(Task {
-                                kind: file_kind.clone(),
+                                kind: file_kind,
                                 path: file.to_string(),
                                 created: Utc::now().naive_utc(),
                                 revision,
@@ -291,7 +288,7 @@ impl Worker {
                     .iter()
                     .map(|task| self.launch_task(&logger, runtime, name, task))
                     .collect::<Vec<_>>(),
-            ).map(|entries| entries.iter().flat_map(|x| x.clone()).collect());
+            ).map(|entries| entries.into_iter().flat_map(|x| x).collect());
             let (new_tasks, in_progress_tasks) =
                 Worker::record_new_tasks(current_package_tasks, new_tasks)?;
 

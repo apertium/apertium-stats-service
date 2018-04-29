@@ -17,12 +17,11 @@ type Lexicons = HashMap<String, LexiconEntry>;
 
 fn get_all_lexicons(lexicons: &Lexicons, root_lexicon: &str) -> BTreeSet<String> {
     let mut frontier = BTreeSet::from_iter(lexicons.get(root_lexicon).unwrap().clone().0);
-    let frontier_clone = frontier.clone();
-    frontier.extend(
-        frontier_clone
-            .iter()
-            .flat_map(|lexicon| get_all_lexicons(lexicons, lexicon)),
-    );
+    let next_frontier = frontier
+        .clone()
+        .into_iter()
+        .flat_map(|lexicon| get_all_lexicons(lexicons, &lexicon));
+    frontier.extend(next_frontier);
     frontier
 }
 
