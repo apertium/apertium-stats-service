@@ -285,9 +285,7 @@ fn sync_package_stats() {
         let response = client.get(endpoint.clone()).dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = parse_response(response);
-        let in_progress = body["in_progress"]
-            .as_array()
-            .expect("valid in_progress");
+        let in_progress = body["in_progress"].as_array().expect("valid in_progress");
         assert_eq!(in_progress.len(), 0);
 
         assert_eq!(body["name"], module);
