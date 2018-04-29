@@ -203,12 +203,12 @@ impl Worker {
                             .map(move |&(ref kind, ref value)| NewEntry {
                                 name: package_name.clone(),
                                 created: Utc::now().naive_utc(),
-                                requested: task.created.clone(),
+                                requested: task.created,
                                 path: task.path.clone(),
                                 stat_kind: kind.clone(),
                                 file_kind: task.kind.clone(),
                                 value: value.clone(),
-                                revision: task.revision.clone(),
+                                revision: task.revision,
                             })
                             .collect::<Vec<_>>();
                         diesel::insert_into(entries::table)
