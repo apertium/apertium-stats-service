@@ -1,6 +1,7 @@
 table! {
     use diesel::sql_types::{Integer, Timestamp, Text};
     use models::{FileKindMapping, StatKindMapping};
+    use util::JsonType;
 
     entries (id) {
         id -> Integer,
@@ -11,6 +12,6 @@ table! {
         path -> Text,
         file_kind -> FileKindMapping,
         stat_kind -> StatKindMapping,
-        value -> Text,
+        value -> JsonType,
     }
 }

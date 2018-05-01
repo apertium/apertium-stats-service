@@ -14,6 +14,7 @@ use self::hyper::Client;
 use self::hyper_tls::HttpsConnector;
 use self::tempfile::NamedTempFile;
 use regex::{Regex, RegexSet, RegexSetBuilder};
+use serde_json::Value;
 use slog::Logger;
 use tokio::prelude::{Future, Stream};
 
@@ -35,7 +36,7 @@ pub fn get_file_stats(
     file_path: String,
     package_name: &str,
     file_kind: FileKind,
-) -> impl Future<Item = Vec<(StatKind, String)>, Error = StatsError> {
+) -> impl Future<Item = Vec<(StatKind, Value)>, Error = StatsError> {
     let url = format!(
         "{}/{}/master/{}",
         super::ORGANIZATION_RAW_ROOT,
@@ -82,7 +83,7 @@ pub fn get_file_stats(
                                 }
                                 for capture in RE.captures_iter(&cg_conv_output) {
                                     if &capture[1] == "Rules" {
-                                        return Ok(vec![(StatKind::Rules, capture[2].to_string())]);
+                                        return Ok(vec![(StatKind::Rules, json!(capture[2]))]);
                                     }
                                 }
 
@@ -107,7 +108,7 @@ pub fn get_file_stats(
                                     .map_or(false, |line| line.starts_with('"'))
                             })
                             .count();
-                        Ok(vec![(StatKind::Rules, rule_count.to_string())])
+                        Ok(vec![(StatKind::Rules, json!(rule_count))])
                     }
                     FileKind::Lexc => self::lexc::get_stats(&logger, body),
                 })

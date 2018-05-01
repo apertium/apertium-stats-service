@@ -20,14 +20,6 @@ pub fn parse_response(mut response: LocalResponse) -> serde_json::Value {
         .expect("valid JSON response")
 }
 
-pub fn parse_i32_value(value: &serde_json::Value) -> i32 {
-    return value
-        .as_str()
-        .expect("value is string")
-        .parse::<i32>()
-        .expect("value is i32");
-}
-
 pub fn wait_for_ok<F>(client: &Client, endpoint: &str, handle_ok_response: F)
 where
     F: Fn(LocalResponse) -> bool,

@@ -6,6 +6,7 @@ use std::io::{BufRead, BufReader};
 use std::iter::FromIterator;
 
 use regex::Regex;
+use serde_json::Value;
 use slog::Logger;
 
 use super::StatsError;
@@ -141,7 +142,7 @@ fn parse_line(
 pub fn get_stats(
     logger: &Logger,
     body: hyper::Chunk,
-) -> Result<Vec<(StatKind, String)>, StatsError> {
+) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut current_lexicon: Option<String> = None;
     let mut lexicons: Lexicons = HashMap::new();
 
@@ -182,7 +183,7 @@ pub fn get_stats(
             .iter()
             .flat_map(|lexicon| lexicons[lexicon].clone().1)
             .collect::<HashSet<_>>();
-        Ok(vec![(StatKind::Stems, entries.len().to_string())])
+        Ok(vec![(StatKind::Stems, json!(entries.len()))])
     } else {
         Err(StatsError::Lexc(String::from("Missing Root lexicon")))
     }

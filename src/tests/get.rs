@@ -109,7 +109,7 @@ fn module_stats() {
                 );
                 let revision = stats[0]["revision"].as_i64().expect("revision is i64");
                 assert!(revision > 500, revision);
-                let value = parse_i32_value(&stats[0]["value"]);
+                let value = stats[0]["value"].as_i64().expect("value is i64");
                 assert!(value > 15, value);
 
                 let response = client.get(endpoint.clone()).dispatch();
@@ -162,7 +162,7 @@ fn pair_stats() {
                         .iter()
                         .map(|entry| (
                             entry["stat_kind"].as_str().expect("kind is string"),
-                            parse_i32_value(&entry["value"]),
+                            entry["value"].as_i64().expect("value is i64")
                         ))
                         .all(|(kind, value)| kind == "Macros" || value > 0),
                     body["stats"].to_string(),
@@ -208,9 +208,9 @@ fn module_specific_stats() {
                     stats[0]["revision"].as_i64().expect("revision1 is i64"),
                     stats[0]["revision"].as_i64().expect("revision2 is i64")
                 );
-                let value1 = parse_i32_value(&stats[0]["value"]);
+                let value1 = stats[0]["value"].as_i64().expect("value is i64");
                 assert!(value1 > 500, value1);
-                let value2 = parse_i32_value(&stats[1]["value"]);
+                let value2 = stats[1]["value"].as_i64().expect("value is i64");
                 assert!(value2 > 500, value2);
 
                 let response = client.get(endpoint.clone()).dispatch();

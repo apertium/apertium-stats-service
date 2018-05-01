@@ -213,7 +213,6 @@ components:
             $ref: '#components/schemas/StatKind'
             example: rlx
           value:
-            type: string
             example: 366
           created:
             type: string

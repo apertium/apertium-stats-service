@@ -24,6 +24,7 @@ use tokio::runtime::Runtime;
 use super::models::{FileKind, NewEntry};
 use super::schema::entries;
 use super::stats::{get_file_kind, get_file_stats};
+use super::util::JsonValue;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct Task {
@@ -216,7 +217,7 @@ impl Worker {
                             path: task.path.clone(),
                             stat_kind: kind,
                             file_kind: task.kind.clone(),
-                            value,
+                            value: JsonValue(value),
                             revision: task.revision,
                         })
                         .collect::<Vec<_>>();

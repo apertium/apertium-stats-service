@@ -5,6 +5,7 @@ use std::str;
 
 use self::quick_xml::events::Event;
 use self::quick_xml::reader::Reader;
+use serde_json::Value;
 
 use super::StatsError;
 
@@ -13,7 +14,7 @@ use models::StatKind;
 pub fn get_bidix_stats(
     body: hyper::Chunk,
     file_path: &str,
-) -> Result<Vec<(StatKind, String)>, StatsError> {
+) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 
@@ -39,13 +40,13 @@ pub fn get_bidix_stats(
         buf.clear();
     }
 
-    Ok(vec![(StatKind::Entries, e_count.to_string())])
+    Ok(vec![(StatKind::Entries, json!(e_count))])
 }
 
 pub fn get_monodix_stats(
     body: hyper::Chunk,
     file_path: &str,
-) -> Result<Vec<(StatKind, String)>, StatsError> {
+) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 
@@ -77,15 +78,15 @@ pub fn get_monodix_stats(
     }
 
     Ok(vec![
-        (StatKind::Entries, e_count.to_string()),
-        (StatKind::Paradigms, pardef_count.to_string()),
+        (StatKind::Entries, json!(e_count)),
+        (StatKind::Paradigms, json!(pardef_count)),
     ])
 }
 
 pub fn get_transfer_stats(
     body: hyper::Chunk,
     file_path: &str,
-) -> Result<Vec<(StatKind, String)>, StatsError> {
+) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 
@@ -111,7 +112,7 @@ pub fn get_transfer_stats(
     }
 
     Ok(vec![
-        (StatKind::Rules, rule_count.to_string()),
-        (StatKind::Macros, macro_count.to_string()),
+        (StatKind::Rules, json!(rule_count)),
+        (StatKind::Macros, json!(macro_count)),
     ])
 }

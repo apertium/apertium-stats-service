@@ -1,11 +1,20 @@
 use std::default::Default;
+use std::error::Error;
+use std::io::Write;
 use std::ops::Try;
 
+use diesel::backend::Backend;
+use diesel::deserialize::{self, FromSql};
+use diesel::serialize::{self, Output, ToSql};
+use diesel::sql_types::Binary;
+use diesel::sqlite::Sqlite;
+use diesel::types::IsNull;
 use regex::RegexSet;
 use rocket::http::Status;
 use rocket::response::{Responder, Response};
 use rocket::Request;
 use rocket_contrib::{Json, Value};
+use serde_json;
 
 pub fn normalize_name(name: &str) -> Result<String, String> {
     let normalized_name = if name.starts_with("apertium-") {
@@ -68,6 +77,37 @@ impl<'r> Responder<'r> for JsonResult {
                 None => Err(status),
             },
         }
+    }
+}
+
+#[derive(SqlType)]
+#[sqlite_type = "Text"]
+pub struct JsonType;
+
+#[derive(AsExpression, Debug, Clone, Serialize, FromSqlRow)]
+#[sql_type = "JsonType"]
+pub struct JsonValue(pub serde_json::Value);
+
+impl FromSql<JsonType, Sqlite> for JsonValue {
+    fn from_sql(value: Option<&<Sqlite as Backend>::RawValue>) -> deserialize::Result<Self> {
+        let bytes = <*const [u8] as FromSql<Binary, Sqlite>>::from_sql(not_none!(value.into()))?;
+        serde_json::from_slice(unsafe { &*bytes })
+            .map(JsonValue)
+            .map_err(|e| Box::new(e) as Box<Error + Send + Sync>)
+    }
+}
+
+impl ToSql<JsonType, Sqlite> for JsonValue {
+    fn to_sql<W: Write>(&self, out: &mut Output<W, Sqlite>) -> serialize::Result {
+        serde_json::to_writer(out, &self.0)
+            .map(|_| {
+                if self.0.is_null() {
+                    IsNull::Yes
+                } else {
+                    IsNull::No
+                }
+            })
+            .map_err(|e| Box::new(e) as Box<Error + Send + Sync>)
     }
 }
 

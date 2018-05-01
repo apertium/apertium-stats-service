@@ -5,7 +5,7 @@ authors = ["Sushain Cherivirala <sushain@skc.name>"]
 
 [dependencies]
 chrono = { version = "0.4.0", features = ["serde"] }
-diesel = { version = "1.1", features = ["sqlite", "serde_json", "chrono", "r2d2"] }
+diesel = { version = "1.2", features = ["sqlite", "serde_json", "chrono", "r2d2"] }
 diesel-derive-enum = { version = "0.4", features = ["sqlite"] }
 dotenv = "0.9.0"
 hyper = { git = "https://github.com/hyperium/hyper.git", branch = "master" }
@@ -13,8 +13,9 @@ hyper-tls = { git = "https://github.com/hyperium/hyper-tls.git", branch = "maste
 lazy_static = "1.0"
 quick-xml = "0.10.0"
 regex = "0.2"
-rocket = "0.3.6"
-rocket_codegen = "0.3.6"
+rocket = "0.3.9"
+rocket_codegen = "0.3.9"
+rocket_contrib = { version = "0.3.9", default-features = false, features = ["json"] }
 rocket_cors = "0.2.3"
 serde = "1.0"
 serde_derive = "1.0"
@@ -25,12 +26,5 @@ slog = "2.2.3"
 slog-term = "2.4.0"
 slog-async = "2.3.0"
 
-[dependencies.rocket_contrib]
-version = "*"
-default-features = false
-features = ["json"]
-
-[dev-dependencies.diesel_cli]
-version = "1.1.0"
-default-features = false
-features = ["sqlite"]
+[dev-dependencies]
+diesel_cli = { version = "1.1.0", default-features = false, features = ["sqlite"] }

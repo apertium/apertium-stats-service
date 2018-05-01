@@ -6,6 +6,7 @@ use std::str;
 use chrono::NaiveDateTime;
 
 use super::schema::entries;
+use super::util::JsonValue;
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum FileKind {
@@ -64,10 +65,10 @@ pub struct Entry {
     pub path: String,
     pub file_kind: FileKind,
     pub stat_kind: StatKind,
-    pub value: String,
+    pub value: JsonValue,
 }
 
-#[derive(Clone, Queryable, Insertable, Debug, Serialize)]
+#[derive(Clone, Insertable, Debug, Serialize)]
 #[table_name = "entries"]
 pub struct NewEntry {
     pub requested: NaiveDateTime,
@@ -77,5 +78,5 @@ pub struct NewEntry {
     pub path: String,
     pub file_kind: FileKind,
     pub stat_kind: StatKind,
-    pub value: String,
+    pub value: JsonValue,
 }
