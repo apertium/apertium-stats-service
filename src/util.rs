@@ -86,7 +86,7 @@ pub struct JsonType;
 
 #[derive(AsExpression, Debug, Clone, Serialize, FromSqlRow)]
 #[sql_type = "JsonType"]
-pub struct JsonValue(pub serde_json::Value);
+pub struct JsonValue(pub Value);
 
 impl FromSql<JsonType, Sqlite> for JsonValue {
     fn from_sql(value: Option<&<Sqlite as Backend>::RawValue>) -> deserialize::Result<Self> {
@@ -108,6 +108,12 @@ impl ToSql<JsonType, Sqlite> for JsonValue {
                 }
             })
             .map_err(|e| Box::new(e) as Box<Error + Send + Sync>)
+    }
+}
+
+impl From<Value> for JsonValue {
+    fn from(value: Value) -> Self {
+        JsonValue(value)
     }
 }
 
