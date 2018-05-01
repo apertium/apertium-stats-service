@@ -14,7 +14,7 @@ use self::hyper::Client;
 use self::hyper_tls::HttpsConnector;
 use self::quick_xml::events::attributes::Attribute;
 use self::quick_xml::events::Event;
-use self::quick_xml::reader::Reader;
+use self::quick_xml::Reader;
 use chrono::{NaiveDateTime, Utc};
 use slog::Logger;
 use tokio::prelude::future::join_all;

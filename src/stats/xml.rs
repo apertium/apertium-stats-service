@@ -4,7 +4,7 @@ extern crate quick_xml;
 use std::str;
 
 use self::quick_xml::events::Event;
-use self::quick_xml::reader::Reader;
+use self::quick_xml::Reader;
 use serde_json::Value;
 
 use super::StatsError;
