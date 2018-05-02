@@ -5,13 +5,12 @@ use std::{collections::{hash_map::Entry, HashMap},
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
-use hyper::Client;
+use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use quick_xml::{events::{attributes::Attribute, Event},
                 Reader};
 use slog::Logger;
-use tokio::{prelude::{future::join_all, Future},
-            runtime::Runtime};
+use tokio::prelude::{future::join_all, Future};
 
 use db::Pool;
 use models::{FileKind, NewEntry};
@@ -170,7 +169,7 @@ impl Worker {
     fn launch_task(
         &self,
         logger: &Logger,
-        runtime: &Runtime,
+        client: &Client<HttpsConnector<HttpConnector>>,
         package_name: &str,
         task: &Task,
     ) -> impl Future<Item = Vec<NewEntry>, Error = ()> {
@@ -183,13 +182,9 @@ impl Worker {
             "kind" => task.kind.to_string(),
         ));
 
-        let client = Client::builder()
-            .executor(runtime.executor())
-            .build(HttpsConnector::new(4).unwrap());
-
         get_file_stats(
             &logger,
-            client,
+            &client,
             task.path.clone(),
             &package_name,
             task.kind.clone(),
@@ -231,7 +226,7 @@ impl Worker {
 
     pub fn launch_tasks(
         &self,
-        runtime: &Runtime,
+        client: &Client<HttpsConnector<HttpConnector>>,
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
@@ -280,7 +275,7 @@ impl Worker {
             let future = join_all(
                 new_tasks
                     .iter()
-                    .map(|task| self.launch_task(&logger, runtime, name, task))
+                    .map(|task| self.launch_task(&logger, client, name, task))
                     .collect::<Vec<_>>(),
             ).map(|entries| entries.into_iter().flat_map(|x| x).collect());
             let (new_tasks, in_progress_tasks) =

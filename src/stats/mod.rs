@@ -5,7 +5,8 @@ use std::{io::{self, BufRead, BufReader, Write},
           process::{Command, Output},
           str};
 
-use hyper::{self, client::HttpConnector, Client};
+use hyper::Error as HyperError;
+use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use serde_json::Value;
@@ -18,7 +19,7 @@ use {LANG_CODE_RE, ORGANIZATION_RAW_ROOT};
 
 #[derive(Debug)]
 pub enum StatsError {
-    Hyper(hyper::Error),
+    Hyper(HyperError),
     Utf8(str::Utf8Error),
     Io(io::Error),
     Xml(String),
@@ -28,7 +29,7 @@ pub enum StatsError {
 
 pub fn get_file_stats(
     logger: &Logger,
-    client: Client<HttpsConnector<HttpConnector>>,
+    client: &Client<HttpsConnector<HttpConnector>>,
     file_path: String,
     package_name: &str,
     file_kind: FileKind,

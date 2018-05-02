@@ -46,6 +46,8 @@ use std::env;
 
 use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
+use hyper::{client::connect::HttpConnector, Client};
+use hyper_tls::HttpsConnector;
 use rocket::{http::{Method, Status},
              State};
 use rocket_contrib::{Json, Value};
@@ -64,7 +66,10 @@ pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apert
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
-    static ref RUNTIME: Runtime = Runtime::new().unwrap();
+    pub static ref RUNTIME: Runtime = Runtime::new().unwrap();
+    pub static ref HTTPS_CLIENT: Client<HttpsConnector<HttpConnector>> = Client::builder()
+        .executor(RUNTIME.executor())
+        .build(HttpsConnector::new(4).unwrap());
 }
 
 fn launch_tasks_and_reply(
@@ -73,7 +78,7 @@ fn launch_tasks_and_reply(
     kind: Option<&FileKind>,
     options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&RUNTIME, &name, kind, options.is_recursive()) {
+    match worker.launch_tasks(&HTTPS_CLIENT, &name, kind, options.is_recursive()) {
         Ok((ref new_tasks, ref in_progress_tasks, ref _future))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
