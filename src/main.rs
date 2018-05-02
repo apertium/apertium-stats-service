@@ -26,6 +26,7 @@ extern crate dotenv;
 extern crate lazy_static;
 extern crate regex;
 extern crate rocket;
+extern crate tempfile;
 #[macro_use]
 extern crate rocket_contrib;
 extern crate rocket_cors;
@@ -35,23 +36,22 @@ extern crate serde_json;
 extern crate tokio;
 #[macro_use]
 extern crate slog;
+extern crate hyper;
+extern crate hyper_tls;
+extern crate quick_xml;
 extern crate slog_async;
 extern crate slog_term;
 
 use std::env;
 
-use diesel::dsl::sql;
-use diesel::prelude::*;
+use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
-use rocket::http::{Method, Status};
-use rocket::State;
+use rocket::{http::{Method, Status},
+             State};
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
-use slog::Drain;
-use slog::Logger;
-use tokio::executor::current_thread::CurrentThread;
-use tokio::prelude::Future;
-use tokio::runtime::Runtime;
+use slog::{Drain, Logger};
+use tokio::{executor::current_thread::CurrentThread, prelude::Future, runtime::Runtime};
 
 use db::DbConn;
 use models::FileKind;

@@ -1,20 +1,13 @@
-extern crate hyper;
-extern crate quick_xml;
-
 use std::str;
 
-use self::quick_xml::events::Event;
-use self::quick_xml::Reader;
+use hyper::Chunk;
+use quick_xml::{events::Event, Reader};
 use serde_json::Value;
 
-use super::StatsError;
-
 use models::StatKind;
+use stats::StatsError;
 
-pub fn get_bidix_stats(
-    body: hyper::Chunk,
-    file_path: &str,
-) -> Result<Vec<(StatKind, Value)>, StatsError> {
+pub fn get_bidix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 
@@ -44,7 +37,7 @@ pub fn get_bidix_stats(
 }
 
 pub fn get_monodix_stats(
-    body: hyper::Chunk,
+    body: Chunk,
     file_path: &str,
 ) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
@@ -84,7 +77,7 @@ pub fn get_monodix_stats(
 }
 
 pub fn get_transfer_stats(
-    body: hyper::Chunk,
+    body: Chunk,
     file_path: &str,
 ) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);

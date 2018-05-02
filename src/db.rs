@@ -1,11 +1,10 @@
 use std::ops::Deref;
 
-use diesel::r2d2;
-use diesel::r2d2::ConnectionManager;
-use diesel::sqlite::SqliteConnection;
-use rocket::http::Status;
-use rocket::request::{self, FromRequest};
-use rocket::{Outcome, Request, State};
+use diesel::{r2d2::{self, ConnectionManager},
+             sqlite::SqliteConnection};
+use rocket::{http::Status,
+             request::{self, FromRequest},
+             {Outcome, Request, State}};
 
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 

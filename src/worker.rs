@@ -1,29 +1,23 @@
-extern crate diesel;
-extern crate hyper;
-extern crate hyper_tls;
-extern crate quick_xml;
+use std::{collections::{hash_map::Entry, HashMap},
+          process::{Command, Output},
+          str,
+          sync::{Arc, Mutex}};
 
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::process::{Command, Output};
-use std::str;
-use std::sync::{Arc, Mutex};
-
-use self::diesel::prelude::*;
-use self::hyper::Client;
-use self::hyper_tls::HttpsConnector;
-use self::quick_xml::events::attributes::Attribute;
-use self::quick_xml::events::Event;
-use self::quick_xml::Reader;
 use chrono::{NaiveDateTime, Utc};
+use diesel::{self, RunQueryDsl};
+use hyper::Client;
+use hyper_tls::HttpsConnector;
+use quick_xml::{events::{attributes::Attribute, Event},
+                Reader};
 use slog::Logger;
-use tokio::prelude::future::join_all;
-use tokio::prelude::Future;
-use tokio::runtime::Runtime;
+use tokio::{prelude::{future::join_all, Future},
+            runtime::Runtime};
 
-use super::models::{FileKind, NewEntry};
-use super::schema::entries;
-use super::stats::{get_file_kind, get_file_stats};
+use db::Pool;
+use models::{FileKind, NewEntry};
+use schema::entries;
+use stats::{get_file_kind, get_file_stats};
+use ORGANIZATION_ROOT;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct Task {
@@ -35,7 +29,7 @@ pub struct Task {
 type Tasks = Vec<Task>;
 
 pub struct Worker {
-    pool: super::db::Pool,
+    pool: Pool,
     current_tasks: Arc<Mutex<HashMap<String, Tasks>>>,
     logger: Logger,
 }
@@ -57,7 +51,7 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
         } else {
             vec![]
         })
-        .arg(format!("{}/{}/trunk", super::ORGANIZATION_ROOT, name))
+        .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, name))
         .output();
 
     match output {
@@ -129,7 +123,7 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
 }
 
 impl Worker {
-    pub fn new(pool: super::db::Pool, logger: Logger) -> Worker {
+    pub fn new(pool: Pool, logger: Logger) -> Worker {
         Worker {
             pool,
             current_tasks: Arc::new(Mutex::new(HashMap::new())),

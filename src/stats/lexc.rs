@@ -1,17 +1,14 @@
-extern crate hyper;
+use std::{collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
+          io::{BufRead, BufReader},
+          iter::FromIterator};
 
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::io::{BufRead, BufReader};
-use std::iter::FromIterator;
-
+use hyper::Chunk;
 use regex::Regex;
 use serde_json::Value;
 use slog::Logger;
 
-use super::StatsError;
-
 use models::StatKind;
+use stats::StatsError;
 
 type LexiconEntry = (Vec<String>, HashSet<(String, BTreeSet<String>)>);
 type Lexicons = HashMap<String, LexiconEntry>;
@@ -139,10 +136,7 @@ fn parse_line(
     }
 }
 
-pub fn get_stats(
-    logger: &Logger,
-    body: hyper::Chunk,
-) -> Result<Vec<(StatKind, Value)>, StatsError> {
+pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut current_lexicon: Option<String> = None;
     let mut lexicons: Lexicons = HashMap::new();
 

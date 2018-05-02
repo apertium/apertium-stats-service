@@ -1,24 +1,20 @@
 mod lexc;
 mod xml;
 
-extern crate hyper;
-extern crate hyper_tls;
-extern crate tempfile;
+use std::{io::{self, BufRead, BufReader, Write},
+          process::{Command, Output},
+          str};
 
-use std::io::{self, BufRead, BufReader, Write};
-use std::process::{Command, Output};
-use std::str;
-
-use self::hyper::client::HttpConnector;
-use self::hyper::Client;
-use self::hyper_tls::HttpsConnector;
-use self::tempfile::NamedTempFile;
+use hyper::{self, client::HttpConnector, Client};
+use hyper_tls::HttpsConnector;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use serde_json::Value;
 use slog::Logger;
+use tempfile::NamedTempFile;
 use tokio::prelude::{Future, Stream};
 
-use super::models::{FileKind, StatKind};
+use models::{FileKind, StatKind};
+use {LANG_CODE_RE, ORGANIZATION_RAW_ROOT};
 
 #[derive(Debug)]
 pub enum StatsError {
@@ -39,9 +35,7 @@ pub fn get_file_stats(
 ) -> impl Future<Item = Vec<(StatKind, Value)>, Error = StatsError> {
     let url = format!(
         "{}/{}/master/{}",
-        super::ORGANIZATION_RAW_ROOT,
-        package_name,
-        file_path
+        ORGANIZATION_RAW_ROOT, package_name, file_path
     ).parse()
         .unwrap();
     let logger = logger.clone();
@@ -118,7 +112,7 @@ pub fn get_file_stats(
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
     lazy_static! {
         static ref RE: RegexSet = {
-            let re = super::LANG_CODE_RE;
+            let re = LANG_CODE_RE;
             RegexSetBuilder::new(&[
                 format!(r"apertium-{re}\.{re}\.dix$", re = re),
                 format!(r"apertium-{re}-{re}\.{re}-{re}\.dix$", re = re),

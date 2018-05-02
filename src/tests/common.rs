@@ -1,3 +1,5 @@
+use serde_json;
+
 use super::*;
 
 macro_rules! run_test {

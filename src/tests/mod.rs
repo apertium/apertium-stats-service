@@ -3,18 +3,15 @@ mod common;
 mod get;
 mod post;
 
-use std::process::{Command, Stdio};
-use std::thread::sleep;
-use std::time::Duration;
+use std::{process::{Command, Stdio},
+          thread::sleep,
+          time::Duration};
 
-extern crate serde_json;
-extern crate tempfile;
+use rocket::{http::Status,
+             local::{Client, LocalResponse}};
+use tempfile::NamedTempFile;
 
-use self::tempfile::NamedTempFile;
-use rocket::http::Status;
-use rocket::local::{Client, LocalResponse};
-
-use super::rocket;
+use rocket;
 
 pub const INITIAL_WAIT_DURATION: u64 = 1;
 pub const MAX_WAIT_DURATION: u64 = 32;

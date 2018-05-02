@@ -1,12 +1,9 @@
-extern crate serde_json;
-
-use std::fmt;
-use std::str;
+use std::{fmt, str};
 
 use chrono::NaiveDateTime;
 
-use super::schema::entries;
-use super::util::JsonValue;
+use schema::entries;
+use util::JsonValue;
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum FileKind {

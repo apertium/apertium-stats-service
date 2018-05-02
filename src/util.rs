@@ -1,20 +1,19 @@
-use std::default::Default;
-use std::error::Error;
-use std::io::Write;
-use std::ops::Try;
+use std::{default::Default, error::Error, io::Write, ops::Try};
 
-use diesel::backend::Backend;
-use diesel::deserialize::{self, FromSql};
-use diesel::serialize::{self, Output, ToSql};
-use diesel::sql_types::Binary;
-use diesel::sqlite::Sqlite;
-use diesel::types::IsNull;
+use diesel::{backend::Backend,
+             deserialize::{self, FromSql},
+             serialize::{self, Output, ToSql},
+             sql_types::Binary,
+             sqlite::Sqlite,
+             types::IsNull};
 use regex::RegexSet;
-use rocket::http::Status;
-use rocket::response::{Responder, Response};
-use rocket::Request;
+use rocket::{http::Status,
+             response::{Responder, Response},
+             Request};
 use rocket_contrib::{Json, Value};
 use serde_json;
+
+use LANG_CODE_RE;
 
 pub fn normalize_name(name: &str) -> Result<String, String> {
     let normalized_name = if name.starts_with("apertium-") {
@@ -25,8 +24,8 @@ pub fn normalize_name(name: &str) -> Result<String, String> {
 
     lazy_static! {
         static ref RE: RegexSet = RegexSet::new(&[
-            format!(r"^apertium-({re})$", re = super::LANG_CODE_RE),
-            format!(r"^apertium-({re})-({re})$", re = super::LANG_CODE_RE),
+            format!(r"^apertium-({re})$", re = LANG_CODE_RE),
+            format!(r"^apertium-({re})-({re})$", re = LANG_CODE_RE),
         ]).unwrap();
     }
 
