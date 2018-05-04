@@ -32,12 +32,12 @@ where
         match response.status() {
             Status::TooManyRequests => {
                 println!("Waiting for OK... ({:?})", sleep_duration);
-            }
+            },
             Status::Ok => {
                 if handle_ok_response(response) {
                     return;
                 }
-            }
+            },
             status => assert!(false, format!("recieved unexpected status: {:?}", status)),
         }
 

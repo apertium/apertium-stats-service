@@ -91,7 +91,7 @@ fn launch_tasks_and_reply(
                 }))),
                 Status::NotFound,
             )
-        }
+        },
         Ok((_new_tasks, in_progress_tasks, future)) => {
             if options.is_async() {
                 let detached_future = future.map(|_| ()).map_err(|_| ());
@@ -114,7 +114,7 @@ fn launch_tasks_and_reply(
                     Err(_err) => JsonResult::Err(None, Status::InternalServerError),
                 }
             }
-        }
+        },
         Err(error) => JsonResult::Err(
             Some(Json(json!({
                     "name": name,

@@ -7,7 +7,9 @@ use diesel::{
 use rocket::{
     http::Status,
     request::{self, FromRequest},
-    {Outcome, Request, State},
+    Outcome,
+    Request,
+    State,
 };
 
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;

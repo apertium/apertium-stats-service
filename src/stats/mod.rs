@@ -7,8 +7,7 @@ use std::{
     str,
 };
 
-use hyper::Error as HyperError;
-use hyper::{client::connect::HttpConnector, Client};
+use hyper::{client::connect::HttpConnector, Client, Error as HyperError};
 use hyper_tls::HttpsConnector;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use serde_json::Value;
@@ -17,7 +16,8 @@ use tempfile::NamedTempFile;
 use tokio::prelude::{Future, Stream};
 
 use models::{FileKind, StatKind};
-use {LANG_CODE_RE, ORGANIZATION_RAW_ROOT};
+use LANG_CODE_RE;
+use ORGANIZATION_RAW_ROOT;
 
 #[derive(Debug)]
 pub enum StatsError {
@@ -54,10 +54,10 @@ pub fn get_file_stats(
                 .and_then(move |body| match file_kind {
                     FileKind::Monodix | FileKind::MetaMonodix => {
                         self::xml::get_monodix_stats(body, &file_path)
-                    }
+                    },
                     FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => {
                         self::xml::get_bidix_stats(body, &file_path)
-                    }
+                    },
                     FileKind::Transfer => self::xml::get_transfer_stats(body, &file_path),
                     FileKind::Rlx => {
                         let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
@@ -94,7 +94,7 @@ pub fn get_file_stats(
                             )),
                             Err(err) => Err(StatsError::Io(err)),
                         }
-                    }
+                    },
                     FileKind::Twol => {
                         let rule_count = BufReader::new(&*body)
                             .lines()
@@ -106,7 +106,7 @@ pub fn get_file_stats(
                             })
                             .count();
                         Ok(vec![(StatKind::Rules, json!(rule_count))])
-                    }
+                    },
                     FileKind::Lexc => self::lexc::get_stats(&logger, body),
                 })
         })
