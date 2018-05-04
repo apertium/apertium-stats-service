@@ -1,14 +1,18 @@
-use std::{collections::{hash_map::Entry, HashMap},
-          process::{Command, Output},
-          str,
-          sync::{Arc, Mutex}};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    process::{Command, Output},
+    str,
+    sync::{Arc, Mutex},
+};
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
-use quick_xml::{events::{attributes::Attribute, Event},
-                Reader};
+use quick_xml::{
+    events::{attributes::Attribute, Event},
+    Reader,
+};
 use slog::Logger;
 use tokio::prelude::{future::join_all, Future};
 

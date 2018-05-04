@@ -1,9 +1,11 @@
 mod lexc;
 mod xml;
 
-use std::{io::{self, BufRead, BufReader, Write},
-          process::{Command, Output},
-          str};
+use std::{
+    io::{self, BufRead, BufReader, Write},
+    process::{Command, Output},
+    str,
+};
 
 use hyper::Error as HyperError;
 use hyper::{client::connect::HttpConnector, Client};

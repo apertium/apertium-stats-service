@@ -1,6 +1,8 @@
-use std::{collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
-          io::{BufRead, BufReader},
-          iter::FromIterator};
+use std::{
+    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
+    io::{BufRead, BufReader},
+    iter::FromIterator,
+};
 
 use hyper::Chunk;
 use regex::Regex;
