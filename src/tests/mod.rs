@@ -4,14 +4,11 @@ mod get;
 mod post;
 
 use std::{
-    process::{Command, Stdio},
-    thread::sleep,
-    time::Duration,
+    process::{Command, Stdio}, thread::sleep, time::Duration,
 };
 
 use rocket::{
-    http::Status,
-    local::{Client, LocalResponse},
+    http::Status, local::{Client, LocalResponse},
 };
 use tempfile::NamedTempFile;
 
