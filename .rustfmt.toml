@@ -1,7 +1,6 @@
 condense_wildcard_suffixes = true
 match_block_trailing_comma = true
 merge_imports = true
-reorder_impl_items = true
 report_fixme = "Unnumbered"
 report_todo = "Unnumbered"
 unstable_features = true

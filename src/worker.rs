@@ -122,6 +122,14 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
 }
 
 impl Worker {
+    pub fn new(pool: Pool, logger: Logger) -> Worker {
+        Worker {
+            pool,
+            current_tasks: Arc::new(Mutex::new(HashMap::new())),
+            logger,
+        }
+    }
+
     pub fn get_tasks_in_progress(&self, name: &str) -> Option<Tasks> {
         let current_tasks = self.current_tasks.lock().unwrap();
         current_tasks.get(name).cloned()
@@ -279,14 +287,6 @@ impl Worker {
                     Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
                 }
             },
-        }
-    }
-
-    pub fn new(pool: Pool, logger: Logger) -> Worker {
-        Worker {
-            pool,
-            current_tasks: Arc::new(Mutex::new(HashMap::new())),
-            logger,
         }
     }
 }
