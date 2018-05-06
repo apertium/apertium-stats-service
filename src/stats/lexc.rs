@@ -1,6 +1,7 @@
-use std::{collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
-          io::{BufRead, BufReader},
-          iter::FromIterator};
+use std::{
+    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet}, io::{BufRead, BufReader},
+    iter::FromIterator,
+};
 
 use hyper::Chunk;
 use regex::Regex;
@@ -39,13 +40,13 @@ fn update_lexicons(
                 .get_mut()
                 .1
                 .insert((lemma.to_string(), continuation_lexicon));
-        }
+        },
         Entry::Vacant(vacant) => {
             vacant.insert((
                 vec![],
                 HashSet::from_iter(vec![(lemma.to_string(), continuation_lexicon)]),
             ));
-        }
+        },
     };
 }
 
@@ -123,10 +124,10 @@ fn parse_line(
             match lexicons.entry(current_lexicon.to_string()) {
                 Entry::Occupied(mut occupied) => {
                     occupied.get_mut().0.push(lexicon_pointer.to_string());
-                }
+                },
                 Entry::Vacant(vacant) => {
                     vacant.insert((vec![lexicon_pointer.to_string()], HashSet::new()));
-                }
+                },
             };
 
             Ok(())

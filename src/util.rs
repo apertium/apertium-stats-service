@@ -1,15 +1,13 @@
 use std::{default::Default, error::Error, io::Write, ops::Try};
 
-use diesel::{backend::Backend,
-             deserialize::{self, FromSql},
-             serialize::{self, Output, ToSql},
-             sql_types::Binary,
-             sqlite::Sqlite,
-             types::IsNull};
+use diesel::{
+    backend::Backend, deserialize::{self, FromSql}, serialize::{self, Output, ToSql},
+    sql_types::Binary, sqlite::Sqlite, types::IsNull,
+};
 use regex::RegexSet;
-use rocket::{http::Status,
-             response::{Responder, Response},
-             Request};
+use rocket::{
+    http::Status, response::{Responder, Response}, Request,
+};
 use rocket_contrib::{Json, Value};
 use serde_json;
 
@@ -45,19 +43,19 @@ impl Try for JsonResult {
     type Ok = Json<Value>;
     type Error = (Option<Json<Value>>, Status);
 
-    fn from_ok(value: Self::Ok) -> Self {
-        JsonResult::Ok(value)
+    fn into_result(self) -> Result<Self::Ok, Self::Error> {
+        match self {
+            JsonResult::Ok(value) => Ok(value),
+            JsonResult::Err(value, status) => Err((value, status)),
+        }
     }
 
     fn from_error((value, status): Self::Error) -> Self {
         JsonResult::Err(value, status)
     }
 
-    fn into_result(self) -> Result<Self::Ok, Self::Error> {
-        match self {
-            JsonResult::Ok(value) => Ok(value),
-            JsonResult::Err(value, status) => Err((value, status)),
-        }
+    fn from_ok(value: Self::Ok) -> Self {
+        JsonResult::Ok(value)
     }
 }
 
@@ -70,7 +68,7 @@ impl<'r> Responder<'r> for JsonResult {
                     Ok(mut response) => {
                         response.set_status(status);
                         Ok(response)
-                    }
+                    },
                     err => err,
                 },
                 None => Err(status),
@@ -123,12 +121,12 @@ pub struct Params {
 }
 
 impl Params {
-    pub fn is_recursive(&self) -> bool {
-        self.recursive.unwrap_or(false)
-    }
-
     pub fn is_async(&self) -> bool {
         self.async.unwrap_or(true)
+    }
+
+    pub fn is_recursive(&self) -> bool {
+        self.recursive.unwrap_or(false)
     }
 }
 

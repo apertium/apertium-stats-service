@@ -2,6 +2,9 @@
 name = "apertium-stats-service"
 version = "0.1.0"
 authors = ["Sushain Cherivirala <sushain@skc.name>"]
+repository = "https://github.com/apertium/apertium-stats-service"
+readme = "README.md"
+license = "GPLv3"
 
 [dependencies]
 chrono = { version = "0.4.2", features = ["serde"] }
@@ -13,15 +16,15 @@ hyper-tls = { git = "https://github.com/hyperium/hyper-tls.git", branch = "maste
 lazy_static = "1.0.0"
 quick-xml = "0.12.1"
 regex = "1.0.0"
-rocket = "0.3.9"
-rocket_codegen = "0.3.9"
-rocket_contrib = { version = "0.3.9", default-features = false, features = ["json"] }
+rocket = "0.3.10"
+rocket_codegen = "0.3.10"
+rocket_contrib = { version = "0.3.10", default-features = false, features = ["json"] }
 rocket_cors = "0.2.3"
-serde = "1.0.43"
-serde_derive = "1.0.43"
+serde = "1.0.45"
+serde_derive = "1.0.45"
 serde_json = "1.0.17"
 tempfile = "3.0.1"
-tokio = "0.1.5"
+tokio = "0.1.6"
 slog = "2.2.3"
 slog-term = "2.4.0"
 slog-async = "2.3.0"

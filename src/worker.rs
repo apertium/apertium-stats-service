@@ -1,14 +1,14 @@
-use std::{collections::{hash_map::Entry, HashMap},
-          process::{Command, Output},
-          str,
-          sync::{Arc, Mutex}};
+use std::{
+    collections::{hash_map::Entry, HashMap}, process::{Command, Output}, str, sync::{Arc, Mutex},
+};
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
-use quick_xml::{events::{attributes::Attribute, Event},
-                Reader};
+use quick_xml::{
+    events::{attributes::Attribute, Event}, Reader,
+};
 use slog::Logger;
 use tokio::prelude::{future::join_all, Future};
 
@@ -93,7 +93,7 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
                                 }
                             }
                         }
-                    }
+                    },
                     Ok(Event::Text(ref e)) if in_name => {
                         name = e.unescape_and_decode(&reader).map_err(|err| {
                             format!(
@@ -102,7 +102,7 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
                                 err,
                             )
                         })?
-                    }
+                    },
                     Ok(Event::End(ref e)) if e.name() == b"name" => in_name = false,
                     Ok(Event::Eof) => break,
                     Err(err) => panic!("Error at position {}: {:?}", reader.buffer_position(), err),
@@ -116,7 +116,7 @@ fn list_files(name: &str, recursive: bool) -> Result<Vec<(String, i32)>, String>
         Ok(Output { stderr, .. }) => {
             let error = String::from_utf8_lossy(&stderr);
             Err(format!("Package not found: {}", error))
-        }
+        },
         Err(_) => Err(format!("Package search failed: {}", name)),
     }
 }
@@ -130,98 +130,9 @@ impl Worker {
         }
     }
 
-    fn record_new_tasks(
-        current_package_tasks: Entry<String, Tasks>,
-        new_tasks: Tasks,
-    ) -> Result<(Tasks, Tasks), String> {
-        match current_package_tasks {
-            Entry::Occupied(mut occupied) => {
-                if !new_tasks.is_empty() {
-                    occupied.get_mut().extend(new_tasks.clone());
-                }
-                Ok((new_tasks, occupied.get().to_vec()))
-            }
-            Entry::Vacant(vacant) => {
-                if new_tasks.is_empty() {
-                    Ok((new_tasks, Vec::new()))
-                } else {
-                    Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
-                }
-            }
-        }
-    }
-
-    fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {
-        if let Entry::Occupied(mut occupied) = current_package_tasks {
-            if let Some(position) = occupied.get().iter().position(
-                |&Task {
-                     ref kind, ref path, ..
-                 }| { kind == &task.kind && path == &task.path },
-            ) {
-                occupied.get_mut().remove(position);
-                if occupied.get().is_empty() {
-                    occupied.remove_entry();
-                }
-            }
-        }
-    }
-
-    fn launch_task(
-        &self,
-        logger: &Logger,
-        client: &Client<HttpsConnector<HttpConnector>>,
-        package_name: &str,
-        task: &Task,
-    ) -> impl Future<Item = Vec<NewEntry>, Error = ()> {
-        let current_tasks_guard = self.current_tasks.clone();
-        let pool = self.pool.clone();
-        let task = task.clone();
-        let package_name = package_name.to_string();
-        let logger = logger.new(o!(
-            "path" => task.path.clone(),
-            "kind" => task.kind.to_string(),
-        ));
-
-        get_file_stats(
-            &logger,
-            &client,
-            task.path.clone(),
-            &package_name,
-            task.kind.clone(),
-        ).then(move |maybe_stats| {
-            let mut current_tasks = current_tasks_guard.lock().unwrap();
-            Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
-
-            match maybe_stats {
-                Ok(stats) => {
-                    debug!(logger, "Completed executing task");
-                    let conn = pool.get().expect("database connection");
-                    let new_entries = stats
-                        .into_iter()
-                        .map(|(kind, value)| NewEntry {
-                            name: package_name.clone(),
-                            created: Utc::now().naive_utc(),
-                            requested: task.created,
-                            path: task.path.clone(),
-                            stat_kind: kind,
-                            file_kind: task.kind.clone(),
-                            value: value.into(),
-                            revision: task.revision,
-                        })
-                        .collect::<Vec<_>>();
-                    diesel::insert_into(entries::table)
-                        .values(&new_entries)
-                        .execute(&*conn)
-                        .unwrap();
-
-                    Ok(new_entries)
-                }
-                Err(err) => {
-                    error!(logger, "Error executing task: {:?}", err);
-                    Ok(vec![])
-                }
-            }
-        })
+    pub fn get_tasks_in_progress(&self, name: &str) -> Option<Tasks> {
+        let current_tasks = self.current_tasks.lock().unwrap();
+        current_tasks.get(name).cloned()
     }
 
     pub fn launch_tasks(
@@ -285,8 +196,97 @@ impl Worker {
         })
     }
 
-    pub fn get_tasks_in_progress(&self, name: &str) -> Option<Tasks> {
-        let current_tasks = self.current_tasks.lock().unwrap();
-        current_tasks.get(name).cloned()
+    fn launch_task(
+        &self,
+        logger: &Logger,
+        client: &Client<HttpsConnector<HttpConnector>>,
+        package_name: &str,
+        task: &Task,
+    ) -> impl Future<Item = Vec<NewEntry>, Error = ()> {
+        let current_tasks_guard = self.current_tasks.clone();
+        let pool = self.pool.clone();
+        let task = task.clone();
+        let package_name = package_name.to_string();
+        let logger = logger.new(o!(
+            "path" => task.path.clone(),
+            "kind" => task.kind.to_string(),
+        ));
+
+        get_file_stats(
+            &logger,
+            &client,
+            task.path.clone(),
+            &package_name,
+            task.kind.clone(),
+        ).then(move |maybe_stats| {
+            let mut current_tasks = current_tasks_guard.lock().unwrap();
+            Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
+
+            match maybe_stats {
+                Ok(stats) => {
+                    debug!(logger, "Completed executing task");
+                    let conn = pool.get().expect("database connection");
+                    let new_entries = stats
+                        .into_iter()
+                        .map(|(kind, value)| NewEntry {
+                            name: package_name.clone(),
+                            created: Utc::now().naive_utc(),
+                            requested: task.created,
+                            path: task.path.clone(),
+                            stat_kind: kind,
+                            file_kind: task.kind.clone(),
+                            value: value.into(),
+                            revision: task.revision,
+                        })
+                        .collect::<Vec<_>>();
+                    diesel::insert_into(entries::table)
+                        .values(&new_entries)
+                        .execute(&*conn)
+                        .unwrap();
+
+                    Ok(new_entries)
+                },
+                Err(err) => {
+                    error!(logger, "Error executing task: {:?}", err);
+                    Ok(vec![])
+                },
+            }
+        })
+    }
+
+    fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {
+        if let Entry::Occupied(mut occupied) = current_package_tasks {
+            if let Some(position) = occupied.get().iter().position(
+                |&Task {
+                     ref kind, ref path, ..
+                 }| { kind == &task.kind && path == &task.path },
+            ) {
+                occupied.get_mut().remove(position);
+                if occupied.get().is_empty() {
+                    occupied.remove_entry();
+                }
+            }
+        }
+    }
+
+    fn record_new_tasks(
+        current_package_tasks: Entry<String, Tasks>,
+        new_tasks: Tasks,
+    ) -> Result<(Tasks, Tasks), String> {
+        match current_package_tasks {
+            Entry::Occupied(mut occupied) => {
+                if !new_tasks.is_empty() {
+                    occupied.get_mut().extend(new_tasks.clone());
+                }
+                Ok((new_tasks, occupied.get().to_vec()))
+            },
+            Entry::Vacant(vacant) => {
+                if new_tasks.is_empty() {
+                    Ok((new_tasks, Vec::new()))
+                } else {
+                    Ok((new_tasks.clone(), vacant.insert(new_tasks).clone()))
+                }
+            },
+        }
     }
 }

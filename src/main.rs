@@ -48,8 +48,9 @@ use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
-use rocket::{http::{Method, Status},
-             State};
+use rocket::{
+    http::{Method, Status}, State,
+};
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use slog::{Drain, Logger};
@@ -89,7 +90,7 @@ fn launch_tasks_and_reply(
                 }))),
                 Status::NotFound,
             )
-        }
+        },
         Ok((_new_tasks, in_progress_tasks, future)) => {
             if options.is_async() {
                 let detached_future = future.map(|_| ()).map_err(|_| ());
@@ -112,7 +113,7 @@ fn launch_tasks_and_reply(
                     Err(_err) => JsonResult::Err(None, Status::InternalServerError),
                 }
             }
-        }
+        },
         Err(error) => JsonResult::Err(
             Some(Json(json!({
                     "name": name,

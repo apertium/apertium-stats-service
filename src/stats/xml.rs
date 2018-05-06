@@ -27,7 +27,7 @@ pub fn get_bidix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, Va
                     file_path,
                     e
                 )));
-            }
+            },
             _ => (),
         }
         buf.clear();
@@ -64,7 +64,7 @@ pub fn get_monodix_stats(
                     file_path,
                     e
                 )));
-            }
+            },
             _ => (),
         }
         buf.clear();
@@ -98,7 +98,7 @@ pub fn get_transfer_stats(
                     file_path,
                     e
                 )));
-            }
+            },
             _ => (),
         }
         buf.clear();
