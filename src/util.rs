@@ -40,8 +40,8 @@ pub enum JsonResult {
 }
 
 impl Try for JsonResult {
-    type Ok = Json<Value>;
     type Error = (Option<Json<Value>>, Status);
+    type Ok = Json<Value>;
 
     fn into_result(self) -> Result<Self::Ok, Self::Error> {
         match self {
