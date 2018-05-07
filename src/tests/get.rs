@@ -72,22 +72,12 @@ fn module_stats() {
         let mut body = parse_response(response);
         assert_eq!(body["name"], module);
 
-        let in_progress = body["in_progress"]
-            .as_array_mut()
-            .expect("valid in_progress");
+        let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
         assert_eq!(in_progress.len(), TEST_HFST_MODULE_FILES_COUNT);
-        in_progress.sort_by_key(|entry| {
-            entry["file"]["path"]
-                .as_str()
-                .expect("path is string")
-                .to_string()
-        });
+        in_progress.sort_by_key(|entry| entry["file"]["path"].as_str().expect("path is string").to_string());
         assert_eq!(in_progress[0]["kind"], "Twol");
         let file = &in_progress[0]["file"];
-        assert_eq!(
-            file["path"],
-            format!("apertium-{0}.err.twol", TEST_HFST_MODULE)
-        );
+        assert_eq!(file["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
         let size = file["size"].as_i64().expect("size is i64");
         assert!(size > 500, size);
         let revision = file["revision"].as_i64().expect("revision is i64");
@@ -95,23 +85,14 @@ fn module_stats() {
 
         wait_for_ok(&client, &endpoint, |response| {
             let mut body = parse_response(response);
-            if body["in_progress"]
-                .as_array()
-                .expect("valid in_progress")
-                .is_empty()
-            {
+            if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
                 assert_eq!(body["name"], module);
                 let stats = body["stats"].as_array_mut().expect("valid stats");
                 assert_eq!(stats.len(), TEST_HFST_MODULE_STATS_COUNT);
-                stats.sort_by_key(|entry| {
-                    entry["path"].as_str().expect("path is string").to_string()
-                });
+                stats.sort_by_key(|entry| entry["path"].as_str().expect("path is string").to_string());
                 assert_eq!(stats[0]["file_kind"], "Twol");
                 assert_eq!(stats[0]["stat_kind"], "Rules");
-                assert_eq!(
-                    stats[0]["path"],
-                    format!("apertium-{0}.err.twol", TEST_HFST_MODULE)
-                );
+                assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
                 let revision = stats[0]["revision"].as_i64().expect("revision is i64");
                 assert!(revision > 500, revision);
                 let value = stats[0]["value"].as_i64().expect("value is i64");
@@ -122,10 +103,7 @@ fn module_stats() {
                 let body = parse_response(response);
                 assert_eq!(body["name"], module);
                 assert!(
-                    body["in_progress"]
-                        .as_array()
-                        .expect("valid in_progress")
-                        .is_empty(),
+                    body["in_progress"].as_array().expect("valid in_progress").is_empty(),
                     body["in_progress"].to_string()
                 );
                 assert_eq!(body["stats"].as_array().expect("valid stats").len(), 5);
@@ -147,18 +125,12 @@ fn pair_stats() {
         let response = client.get(endpoint.clone()).dispatch();
         assert_eq!(response.status(), Status::Accepted);
         let mut body = parse_response(response);
-        let in_progress = body["in_progress"]
-            .as_array_mut()
-            .expect("valid in_progress");
+        let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
         assert_eq!(in_progress.len(), TEST_PAIR_FILES_COUNT);
 
         wait_for_ok(&client, &endpoint, |response| {
             let body = parse_response(response);
-            if body["in_progress"]
-                .as_array()
-                .expect("valid in_progress")
-                .is_empty()
-            {
+            if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
                 assert_eq!(body["name"], module);
                 let stats = body["stats"].as_array().expect("valid stats");
                 assert_eq!(stats.len(), TEST_PAIR_STATS_COUNT);
@@ -190,25 +162,16 @@ fn module_specific_stats() {
         let response = client.get(endpoint.clone()).dispatch();
         assert_eq!(response.status(), Status::Accepted);
         let mut body = parse_response(response);
-        let in_progress = body["in_progress"]
-            .as_array_mut()
-            .expect("valid in_progress");
+        let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
         assert_eq!(in_progress.len(), 1);
 
         wait_for_ok(&client, &endpoint, |response| {
             let body = parse_response(response);
-            if body["in_progress"]
-                .as_array()
-                .expect("valid in_progress")
-                .is_empty()
-            {
+            if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
                 assert_eq!(body["name"], module);
                 let stats = body["stats"].as_array().expect("valid stats");
                 assert_eq!(stats.len(), 2);
-                assert_eq!(
-                    stats[0]["path"],
-                    format!("apertium-{0}.{0}.dix", TEST_LT_MODULE)
-                );
+                assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", TEST_LT_MODULE));
                 assert_eq!(
                     stats[0]["revision"].as_i64().expect("revision1 is i64"),
                     stats[0]["revision"].as_i64().expect("revision2 is i64")
@@ -223,10 +186,7 @@ fn module_specific_stats() {
                 let body = parse_response(response);
                 assert_eq!(body["name"], module);
                 assert!(
-                    body["in_progress"]
-                        .as_array()
-                        .expect("valid in_progress")
-                        .is_empty(),
+                    body["in_progress"].as_array().expect("valid in_progress").is_empty(),
                     body["in_progress"].to_string()
                 );
                 assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
@@ -250,26 +210,19 @@ fn recursive_package_stats() {
         let mut body = parse_response(response);
         assert_eq!(body["name"], module);
 
-        let in_progress = body["in_progress"]
-            .as_array_mut()
-            .expect("valid in_progress");
+        let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
         assert_eq!(in_progress.len(), 3);
 
         wait_for_ok(&client, &endpoint, |response| {
             let body = parse_response(response);
-            if body["in_progress"]
-                .as_array()
-                .expect("valid in_progress")
-                .is_empty()
-            {
+            if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
                 assert_eq!(body["name"], module);
                 let stats = body["stats"].as_array().expect("valid stats");
                 assert_eq!(stats.len(), 3);
                 assert!(
-                    stats.iter().any(|entry| entry["path"]
-                        .as_str()
-                        .expect("path is string")
-                        .contains("/")),
+                    stats
+                        .iter()
+                        .any(|entry| entry["path"].as_str().expect("path is string").contains("/")),
                     body["stats"].to_string()
                 );
 

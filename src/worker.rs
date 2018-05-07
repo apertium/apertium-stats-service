@@ -53,40 +53,27 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
     }
 
     fn decode_bytes(bytes: &BytesText, reader: &Reader<&[u8]>) -> Result<String, String> {
-        bytes.unescape_and_decode(&reader).map_err(|err| {
-            format!(
-                "Decoding error at position {}: {:?}",
-                reader.buffer_position(),
-                err,
-            )
-        })
+        bytes
+            .unescape_and_decode(&reader)
+            .map_err(|err| format!("Decoding error at position {}: {:?}", reader.buffer_position(), err,))
     }
 
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
-        .args(if recursive {
-            vec!["--recursive"]
-        } else {
-            vec![]
-        })
+        .args(if recursive { vec!["--recursive"] } else { vec![] })
         .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, name))
         .output();
 
     match output {
-        Ok(Output {
-            status, ref stdout, ..
-        }) if status.success() =>
-        {
+        Ok(Output { status, ref stdout, .. }) if status.success() => {
             let xml = String::from_utf8_lossy(stdout);
             let mut reader = Reader::from_str(&xml);
             let mut buf = Vec::new();
 
             let mut files = Vec::new();
-            let (mut in_name, mut in_author, mut in_date, mut in_size) =
-                (false, false, false, false);
-            let (mut name, mut author, mut date, mut size, mut revision) =
-                (None, None, None, None, None);
+            let (mut in_name, mut in_author, mut in_date, mut in_size) = (false, false, false, false);
+            let (mut name, mut author, mut date, mut size, mut revision) = (None, None, None, None, None);
 
             loop {
                 match reader.read_event(&mut buf) {
@@ -97,9 +84,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                     Ok(Event::Start(ref e)) if e.name() == b"entry" => {
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
-                                if decode_utf8(&key, &reader)? == "kind"
-                                    && decode_utf8(&value, &reader)? == "file"
-                                {
+                                if decode_utf8(&key, &reader)? == "kind" && decode_utf8(&value, &reader)? == "file" {
                                     continue;
                                 }
                             }
@@ -109,15 +94,13 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
-                                    revision = Some(decode_utf8(&value, &reader)?
-                                        .parse::<i32>()
-                                        .map_err(|err| {
-                                            format!(
-                                                "Revision number parsing error at position {}: {:?}",
-                                                reader.buffer_position(),
-                                                err,
-                                            )
-                                        })?);
+                                    revision = Some(decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
+                                        format!(
+                                            "Revision number parsing error at position {}: {:?}",
+                                            reader.buffer_position(),
+                                            err,
+                                        )
+                                    })?);
                                     break;
                                 }
                             }
@@ -192,7 +175,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             }
 
             Ok(files)
-        }
+        },
         Ok(Output { stderr, .. }) => {
             let error = String::from_utf8_lossy(&stderr);
             Err(format!("Package not found: {}", error))
@@ -242,9 +225,7 @@ impl Worker {
                                      kind,
                                      file: File { path, .. },
                                      ..
-                                 }| {
-                                    kind == &file_kind && path == &file.path
-                                },
+                                 }| { kind == &file_kind && path == &file.path },
                             ),
                             _ => false,
                         };
@@ -260,12 +241,7 @@ impl Worker {
                     })
                 })
                 .collect::<Vec<_>>();
-            info!(
-                logger,
-                "Spawning {} task(s): {:?}",
-                new_tasks.len(),
-                new_tasks,
-            );
+            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks,);
 
             let future = join_all(
                 new_tasks
@@ -273,8 +249,7 @@ impl Worker {
                     .map(|task| self.launch_task(&logger, client, name, task))
                     .collect::<Vec<_>>(),
             ).map(|entries| entries.into_iter().flat_map(|x| x).collect());
-            let (new_tasks, in_progress_tasks) =
-                Worker::record_new_tasks(current_package_tasks, new_tasks)?;
+            let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
 
             Ok((new_tasks, in_progress_tasks, future))
         })
@@ -343,11 +318,11 @@ impl Worker {
 
     fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {
         if let Entry::Occupied(mut occupied) = current_package_tasks {
-            if let Some(position) = occupied.get().iter().position(
-                |&Task {
-                     ref kind, ref file, ..
-                 }| { kind == &task.kind && file.path == task.file.path },
-            ) {
+            if let Some(position) = occupied
+                .get()
+                .iter()
+                .position(|&Task { ref kind, ref file, .. }| kind == &task.kind && file.path == task.file.path)
+            {
                 occupied.get_mut().remove(position);
                 if occupied.get().is_empty() {
                     occupied.remove_entry();

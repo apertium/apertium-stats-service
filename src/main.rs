@@ -168,12 +168,7 @@ See openapi.yaml for full specification."
 }
 
 #[get("/<name>?<params>")]
-fn get_stats(
-    name: String,
-    params: Option<Params>,
-    conn: DbConn,
-    worker: State<Worker>,
-) -> JsonResult {
+fn get_stats(name: String, params: Option<Params>, conn: DbConn, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
 
     let entries: Vec<models::Entry> = entries_db::table
@@ -238,11 +233,7 @@ fn get_specific_stats(
 
     if entries.is_empty() {
         if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
-            if in_progress_tasks
-                .iter()
-                .filter(|task| task.kind == file_kind)
-                .count() != 0
-            {
+            if in_progress_tasks.iter().filter(|task| task.kind == file_kind).count() != 0 {
                 return JsonResult::Err(
                     Some(Json(json!({
                         "name": name,
@@ -272,12 +263,7 @@ fn get_specific_stats(
 }
 
 #[get("/<name>/<kind>")]
-fn get_specific_stats_no_params(
-    name: String,
-    kind: String,
-    conn: DbConn,
-    worker: State<Worker>,
-) -> JsonResult {
+fn get_specific_stats_no_params(name: String, kind: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
     get_specific_stats(name, kind, None, conn, worker)
 }
 
@@ -293,23 +279,14 @@ fn calculate_stats_no_params(name: String, worker: State<Worker>) -> JsonResult 
 }
 
 #[post("/<name>/<kind>?<params>")]
-fn calculate_specific_stats(
-    name: String,
-    kind: String,
-    params: Option<Params>,
-    worker: State<Worker>,
-) -> JsonResult {
+fn calculate_specific_stats(name: String, kind: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
     launch_tasks_and_reply(&worker, name, Some(&file_kind), params.unwrap_or_default())
 }
 
 #[post("/<name>/<kind>")]
-fn calculate_specific_stats_no_params(
-    name: String,
-    kind: String,
-    worker: State<Worker>,
-) -> JsonResult {
+fn calculate_specific_stats_no_params(name: String, kind: String, worker: State<Worker>) -> JsonResult {
     calculate_specific_stats(name, kind, None, worker)
 }
 
@@ -327,10 +304,7 @@ fn rocket(database_url: String) -> rocket::Rocket {
 
     let cors_options = rocket_cors::Cors {
         allowed_origins: AllowedOrigins::all(),
-        allowed_methods: vec![Method::Get, Method::Post]
-            .into_iter()
-            .map(From::from)
-            .collect(),
+        allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
         allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
         allow_credentials: true,
         ..Default::default()

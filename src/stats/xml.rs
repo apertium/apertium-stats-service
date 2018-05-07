@@ -36,10 +36,7 @@ pub fn get_bidix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, Va
     Ok(vec![(StatKind::Entries, json!(e_count))])
 }
 
-pub fn get_monodix_stats(
-    body: Chunk,
-    file_path: &str,
-) -> Result<Vec<(StatKind, Value)>, StatsError> {
+pub fn get_monodix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 
@@ -76,10 +73,7 @@ pub fn get_monodix_stats(
     ])
 }
 
-pub fn get_transfer_stats(
-    body: Chunk,
-    file_path: &str,
-) -> Result<Vec<(StatKind, Value)>, StatsError> {
+pub fn get_transfer_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, Value)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 

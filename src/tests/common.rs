@@ -18,8 +18,7 @@ macro_rules! run_test {
 }
 
 pub fn parse_response(mut response: LocalResponse) -> serde_json::Value {
-    serde_json::from_str(&response.body_string().expect("non-empty body"))
-        .expect("valid JSON response")
+    serde_json::from_str(&response.body_string().expect("non-empty body")).expect("valid JSON response")
 }
 
 pub fn wait_for_ok<F>(client: &Client, endpoint: &str, handle_ok_response: F)

@@ -1,8 +1,8 @@
 use std::{default::Default, error::Error, io::Write, ops::Try};
 
 use diesel::{
-    backend::Backend, deserialize::{self, FromSql}, serialize::{self, Output, ToSql},
-    sql_types::Binary, sqlite::Sqlite, types::IsNull,
+    backend::Backend, deserialize::{self, FromSql}, serialize::{self, Output, ToSql}, sql_types::Binary,
+    sqlite::Sqlite, types::IsNull,
 };
 use regex::RegexSet;
 use rocket::{
@@ -97,13 +97,7 @@ impl FromSql<JsonType, Sqlite> for JsonValue {
 impl ToSql<JsonType, Sqlite> for JsonValue {
     fn to_sql<W: Write>(&self, out: &mut Output<W, Sqlite>) -> serialize::Result {
         serde_json::to_writer(out, &self.0)
-            .map(|_| {
-                if self.0.is_null() {
-                    IsNull::Yes
-                } else {
-                    IsNull::No
-                }
-            })
+            .map(|_| if self.0.is_null() { IsNull::Yes } else { IsNull::No })
             .map_err(|e| Box::new(e) as Box<Error + Send + Sync>)
     }
 }

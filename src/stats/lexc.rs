@@ -1,6 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet}, io::{BufRead, BufReader},
-    iter::FromIterator,
+    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet}, io::{BufRead, BufReader}, iter::FromIterator,
 };
 
 use hyper::Chunk;
@@ -36,10 +35,7 @@ fn update_lexicons(
 ) {
     match lexicons.entry(current_lexicon.to_string()) {
         Entry::Occupied(mut occupied) => {
-            occupied
-                .get_mut()
-                .1
-                .insert((lemma.to_string(), continuation_lexicon));
+            occupied.get_mut().1.insert((lemma.to_string(), continuation_lexicon));
         },
         Entry::Vacant(vacant) => {
             vacant.insert((
@@ -146,19 +142,16 @@ pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>,
         static ref CLEAN_COMMENTS_RE: Regex = Regex::new(r"!.*$").unwrap();
     }
 
-    for (line_number, line) in BufReader::new(&*body)
-        .lines()
-        .filter_map(|line| line.ok())
-        .enumerate()
-    {
+    for (line_number, line) in BufReader::new(&*body).lines().filter_map(|line| line.ok()).enumerate() {
         let unescaped_line = ESCAPE_RE.replace_all(&line, r"\1");
         let without_comments_line = CLEAN_COMMENTS_RE.replace(&unescaped_line, "");
         let clean_line = without_comments_line.trim();
 
         if clean_line.starts_with("LEXICON") {
-            let lexicon_name = clean_line.split_whitespace().nth(1).ok_or_else(|| {
-                StatsError::Lexc(format!("LEXICON start missing <space> (L{})", line_number))
-            })?;
+            let lexicon_name = clean_line
+                .split_whitespace()
+                .nth(1)
+                .ok_or_else(|| StatsError::Lexc(format!("LEXICON start missing <space> (L{})", line_number)))?;
             current_lexicon = Some(lexicon_name.to_string());
         } else if !clean_line.is_empty() && current_lexicon.is_some() {
             if let Err(err) = parse_line(
