@@ -192,47 +192,57 @@ components:
         - Transfer
         - Lexc
         - Twol
+    File:
+      type: object
+      properties:
+        last_author:
+          type: string
+          example: jim.o.regan
+        size:
+          type: integer
+          example: 13
+        last_changed:
+          type: string
+          format:	date-time
+        path:
+          type: string
+          example: apertium-pl-dsb.pl-dsb.dix
+        revision:
+          type: integer
+          example: 13
     Stats:
       type: array
       items:
-        type: object
-        properties:
-          name:
-            type: string
-            example: apertium-pl-dsb
-          path:
-            type: string
-            example: apertium-pl-dsb.pl-dsb.dix
-          revision:
-            type: string
-            example: 13
-          file_kind:
-            $ref: '#components/schemas/FileKind'
-            example: stems
-          stat_kind:
-            $ref: '#components/schemas/StatKind'
-            example: rlx
-          value:
-            example: 366
-          created:
-            type: string
-            format:	date-time
-          requested:
-            type: string
-            format:	date-time
+        allOf:
+          - $ref: '#/components/schemas/File'
+          - type: object
+            properties:
+              name:
+                type: string
+                example: apertium-pl-dsb
+              file_kind:
+                $ref: '#components/schemas/FileKind'
+                example: stems
+              stat_kind:
+                $ref: '#components/schemas/StatKind'
+                example: rlx
+              value:
+                example: 366
+              created:
+                type: string
+                format:	date-time
+              requested:
+                type: string
+                format:	date-time
     StatsInProgress:
       type: array
       items:
         type: object
         properties:
+          file:
+            $ref: '#/components/schemas/File'
           kind:
             $ref: '#components/schemas/FileKind'
           created:
             type: string
             format:	date-time
-          path:
-            type: string
-            example: apertium-pl-dsb.pl-dsb.dix
-          revision:
-            type: string
-            example: 13

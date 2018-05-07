@@ -76,16 +76,21 @@ fn module_stats() {
             .as_array_mut()
             .expect("valid in_progress");
         assert_eq!(in_progress.len(), TEST_HFST_MODULE_FILES_COUNT);
-        in_progress
-            .sort_by_key(|entry| entry["path"].as_str().expect("path is string").to_string());
+        in_progress.sort_by_key(|entry| {
+            entry["file"]["path"]
+                .as_str()
+                .expect("path is string")
+                .to_string()
+        });
         assert_eq!(in_progress[0]["kind"], "Twol");
+        let file = &in_progress[0]["file"];
         assert_eq!(
-            in_progress[0]["path"],
+            file["path"],
             format!("apertium-{0}.err.twol", TEST_HFST_MODULE)
         );
-        let revision = in_progress[0]["revision"]
-            .as_i64()
-            .expect("revision is i64");
+        let size = file["size"].as_i64().expect("size is i64");
+        assert!(size > 500, size);
+        let revision = file["revision"].as_i64().expect("revision is i64");
         assert!(revision > 500, revision);
 
         wait_for_ok(&client, &endpoint, |response| {
