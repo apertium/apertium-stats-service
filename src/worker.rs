@@ -72,25 +72,24 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             let mut buf = Vec::new();
 
             let mut files = Vec::new();
+            let mut in_file_entry = false;
             let (mut in_name, mut in_author, mut in_date, mut in_size) = (false, false, false, false);
             let (mut name, mut author, mut date, mut size, mut revision) = (None, None, None, None, None);
 
             loop {
                 match reader.read_event(&mut buf) {
-                    Ok(Event::Start(ref e)) if e.name() == b"author" => in_author = true,
-                    Ok(Event::Start(ref e)) if e.name() == b"date" => in_date = true,
-                    Ok(Event::Start(ref e)) if e.name() == b"name" => in_name = true,
-                    Ok(Event::Start(ref e)) if e.name() == b"size" => in_size = true,
                     Ok(Event::Start(ref e)) if e.name() == b"entry" => {
-                        for attr in e.attributes() {
-                            if let Ok(Attribute { value, key }) = attr {
-                                if decode_utf8(&key, &reader)? == "kind" && decode_utf8(&value, &reader)? == "file" {
-                                    continue;
-                                }
-                            }
-                        }
+                        in_file_entry = e.attributes().any(|attr| {
+                            attr.map(|Attribute { value, key }| {
+                                decode_utf8(&key, &reader) == Ok("kind") && decode_utf8(&value, &reader) == Ok("file")
+                            }).unwrap_or(false)
+                        });
                     },
-                    Ok(Event::Start(ref e)) if e.name() == b"commit" => {
+                    Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"author" => in_author = true,
+                    Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"date" => in_date = true,
+                    Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"name" => in_name = true,
+                    Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"size" => in_size = true,
+                    Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"commit" => {
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
@@ -138,34 +137,38 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                     Ok(Event::End(ref e)) if e.name() == b"name" => in_name = false,
                     Ok(Event::End(ref e)) if e.name() == b"size" => in_size = false,
                     Ok(Event::End(ref e)) if e.name() == b"entry" => {
-                        match (name.clone(), size, revision, author.clone(), date) {
-                            (Some(name), Some(size), Some(revision), Some(author), Some(date)) => {
-                                trace!(
-                                    logger,
-                                    "Parsed file";
-                                    "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
-                                );
-                                files.push(File {
-                                    path: name,
-                                    size,
-                                    revision,
-                                    last_author: author,
-                                    last_changed: date,
-                                });
-                            },
-                            _ => {
-                                warn!(
-                                    logger,
-                                    "Failed to fetch all file information";
-                                    "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()),
-                                );
-                                name = None;
-                                size = None;
-                                revision = None;
-                                author = None;
-                                date = None;
-                            },
+                        if in_file_entry {
+                            match (name.clone(), size, revision, author.clone(), date) {
+                                (Some(name), Some(size), Some(revision), Some(author), Some(date)) => {
+                                    trace!(
+                                        logger,
+                                        "Parsed file";
+                                        "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
+                                    );
+                                    files.push(File {
+                                        path: name,
+                                        size,
+                                        revision,
+                                        last_author: author,
+                                        last_changed: date,
+                                    });
+                                },
+                                _ => {
+                                    warn!(
+                                        logger,
+                                        "Failed to fetch all file information";
+                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()),
+                                    );
+                                },
+                            }
                         }
+
+                        in_file_entry = false;
+                        name = None;
+                        size = None;
+                        revision = None;
+                        author = None;
+                        date = None;
                     },
                     Ok(Event::Eof) => break,
                     Err(err) => panic!("Error at position {}: {:?}", reader.buffer_position(), err),
