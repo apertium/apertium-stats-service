@@ -11,7 +11,7 @@ before_script:
   - cargo install diesel_cli --version $DIESEL_CLI_VERSION || echo 'diesel_cli already installed'
   - cargo install cargo-tarpaulin || echo 'cargo-tarpaulin already installed'
 script:
-  - cargo fmt -- --write-mode=diff
+  - cargo fmt -- --check
   - cargo clippy --verbose || cargo build --verbose # blocked by https://github.com/rust-lang-nursery/rust-clippy/issues/2727
   - cargo test --verbose
 after_success:
