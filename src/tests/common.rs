@@ -27,7 +27,7 @@ where
 {
     let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
     while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
-        let response = client.get(endpoint.clone()).dispatch();
+        let response = client.get(endpoint).dispatch();
         match response.status() {
             Status::TooManyRequests => {
                 println!("Waiting for OK... ({:?})", sleep_duration);

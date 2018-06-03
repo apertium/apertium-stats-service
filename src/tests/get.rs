@@ -108,10 +108,10 @@ fn module_stats() {
                 );
                 assert_eq!(body["stats"].as_array().expect("valid stats").len(), 5);
 
-                return true;
+                true
+            } else {
+                false
             }
-
-            return false;
         });
     });
 }
@@ -145,10 +145,10 @@ fn pair_stats() {
                     body["stats"].to_string(),
                 );
 
-                return true;
+                true
+            } else {
+                false
             }
-
-            return false;
         });
     });
 }
@@ -191,10 +191,10 @@ fn module_specific_stats() {
                 );
                 assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
 
-                return true;
+                true
+            } else {
+                false
             }
-
-            return false;
         });
     });
 }
@@ -222,14 +222,14 @@ fn recursive_package_stats() {
                 assert!(
                     stats
                         .iter()
-                        .any(|entry| entry["path"].as_str().expect("path is string").contains("/")),
+                        .any(|entry| entry["path"].as_str().expect("path is string").contains('/')),
                     body["stats"].to_string()
                 );
 
-                return true;
+                true
+            } else {
+                false
             }
-
-            return false;
         });
     });
 }

@@ -34,16 +34,16 @@ fn package_stats() {
                         let new_created = new_stats[0]["created"].as_str().expect("created is string");
                         assert!(new_created > created);
 
-                        return true;
+                        true
+                    } else {
+                        false
                     }
-
-                    return false;
                 });
 
-                return true;
+                true
+            } else {
+                false
             }
-
-            return false;
         });
     });
 }
@@ -91,16 +91,16 @@ fn package_specific_stats() {
                         let new_created = new_stats[0]["created"].as_str().expect("created is string");
                         assert!(new_created > created);
 
-                        return true;
+                        true
+                    } else {
+                        false
                     }
-
-                    return false;
                 });
 
-                return true;
+                true
+            } else {
+                false
             }
-
-            return false;
         });
     });
 }
