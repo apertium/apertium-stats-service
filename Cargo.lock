@@ -28,8 +28,8 @@ dependencies = [
  "diesel-derive-enum 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "diesel_cli 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dotenv 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "hyper 0.12.0-pre.0 (git+https://github.com/hyperium/hyper.git)",
- "hyper-tls 0.2.0-a.0 (git+https://github.com/hyperium/hyper-tls.git)",
+ "hyper 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hyper-tls 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-xml 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -43,7 +43,7 @@ dependencies = [
  "slog 2.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog-async 2.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog-term 2.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile 3.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempfile 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -469,8 +469,8 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "0.12.0-pre.0"
-source = "git+https://github.com/hyperium/hyper.git#ab3c73fd842848b38bb20721dfe8cc1e95ad7def"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -493,11 +493,11 @@ dependencies = [
 
 [[package]]
 name = "hyper-tls"
-version = "0.2.0-a.0"
-source = "git+https://github.com/hyperium/hyper-tls.git#5598eed23c7a88e78ee60bf9c6bceba48e89528d"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
- "hyper 0.12.0-pre.0 (git+https://github.com/hyperium/hyper.git)",
+ "hyper 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "native-tls 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-tls 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1211,7 +1211,7 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.0.1"
+version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.39 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1649,8 +1649,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum http 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "75df369fd52c60635208a4d3e694777c099569b3dcf4844df8f652dc004644ab"
 "checksum httparse 1.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "c2f407128745b78abc95c0ffbe4e5d37427fdc0d45470710cfef8c44522a2e37"
 "checksum hyper 0.10.13 (registry+https://github.com/rust-lang/crates.io-index)" = "368cb56b2740ebf4230520e2b90ebb0461e69034d85d1945febd9b3971426db2"
-"checksum hyper 0.12.0-pre.0 (git+https://github.com/hyperium/hyper.git)" = "<none>"
-"checksum hyper-tls 0.2.0-a.0 (git+https://github.com/hyperium/hyper-tls.git)" = "<none>"
+"checksum hyper 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7027c42a840763b8c0a7a80527cb17de0413ce7ced3043b50bbd1c3a06c0f1f8"
+"checksum hyper-tls 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b220edc52ee36375afea455c0ad46ac3a76c1a9ad2ed117eaafb60e93a4a3c1e"
 "checksum idna 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "014b298351066f1512874135335d62a789ffe78a9974f94b43ed5621951eaf7d"
 "checksum indexmap 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "08173ba1e906efb6538785a8844dd496f5d34f0a2d88038e95195172fc667220"
 "checksum infer_schema_internals 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e29654a5ade7e34a51637f40b45fa128c7fd62b0d4c3e2a19efca7caf7d9abf6"
@@ -1736,7 +1736,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum syntex_fmt_macros 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5e5386bdc48758d136af85b3880548e1f3a9fad8d7dc2b38bdb48c36a9cdefc0"
 "checksum take_mut 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 "checksum tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
-"checksum tempfile 3.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8cddbd26c5686ece823b507f304c8f188daef548b4cb753512d929ce478a093c"
+"checksum tempfile 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "47776f63b85777d984a50ce49d6b9e58826b6a3766a449fc95bc66cd5663c15b"
 "checksum term 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5e6b677dd1e8214ea1ef4297f85dbcbed8e8cdddb561040cc998ca2551c37561"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
 "checksum textwrap 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c0b59b6b4b44d867f1370ef1bd91bfb262bf07bf0ae65c202ea2fbc16153b693"
