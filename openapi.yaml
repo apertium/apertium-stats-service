@@ -203,7 +203,7 @@ components:
           example: 13
         last_changed:
           type: string
-          format:	date-time
+          format: date-time
         path:
           type: string
           example: apertium-pl-dsb.pl-dsb.dix
@@ -230,10 +230,10 @@ components:
                 example: 366
               created:
                 type: string
-                format:	date-time
+                format: date-time
               requested:
                 type: string
-                format:	date-time
+                format: date-time
     StatsInProgress:
       type: array
       items:
@@ -245,4 +245,4 @@ components:
             $ref: '#components/schemas/FileKind'
           created:
             type: string
-            format:	date-time
+            format: date-time
