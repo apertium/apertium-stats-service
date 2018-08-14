@@ -238,6 +238,24 @@ fn module_specific_stats() {
 }
 
 #[test]
+fn pair_specific_stats() {
+    let module = format!("apertium-{}", TEST_LT_PAIR);
+    let endpoint = format!("/{}/transfer?async=false", module);
+
+    run_test!(|client| {
+        let response = client.get(endpoint.clone()).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = parse_response(response);
+        let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+        assert_eq!(in_progress.len(), 0);
+
+        assert_eq!(body["name"], module);
+        let stats = body["stats"].as_array().expect("valid stats");
+        assert_eq!(stats.len(), 12);
+    });
+}
+
+#[test]
 fn recursive_package_stats() {
     let module = format!("apertium-{}", TEST_HFST_MODULE);
     let endpoint = format!("/{}/twol?recursive=true", module);
