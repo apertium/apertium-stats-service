@@ -32,7 +32,8 @@ fn invalid_package_stats() {
 #[test]
 fn nonexistent_kind_package_stats() {
     run_test!(|client| {
-        let response = client.get("/kaz/monodix").dispatch();
+        let endpoint = format!("/{}/monodix", TEST_HFST_MODULE);
+        let response = client.get(endpoint).dispatch();
         assert_eq!(response.status(), Status::NotFound);
         let body = parse_response(response);
         assert_eq!(
@@ -48,7 +49,8 @@ fn nonexistent_kind_package_stats() {
 #[test]
 fn invalid_kind_package_stats() {
     run_test!(|client| {
-        let response = client.get("/kaz/dix").dispatch();
+        let endpoint = format!("/{}/dix", TEST_HFST_MODULE);
+        let response = client.get(endpoint).dispatch();
         assert_eq!(response.status(), Status::BadRequest);
         let body = parse_response(response);
         assert_eq!(
