@@ -28,9 +28,13 @@ pub const TEST_HFST_MODULE: &str = "kaz";
 pub const TEST_HFST_MODULE_FILES_COUNT: usize = 5;
 pub const TEST_HFST_MODULE_STATS_COUNT: usize = 5;
 
-pub const TEST_PAIR: &str = "kaz-tat";
-pub const TEST_PAIR_FILES_COUNT: usize = 7;
-pub const TEST_PAIR_STATS_COUNT: usize = 11;
+pub const TEST_HFST_PAIR: &str = "kaz-tat";
+pub const TEST_HFST_PAIR_FILES_COUNT: usize = 7;
+pub const TEST_HFST_PAIR_STATS_COUNT: usize = 11;
+
+pub const TEST_LT_PAIR: &str = "oci-cat";
+pub const TEST_LT_PAIR_FILES_COUNT: usize = 7;
+pub const TEST_LT_PAIR_STATS_COUNT: usize = 13;
 
 #[test]
 fn usage() {

@@ -119,8 +119,8 @@ fn module_stats() {
 }
 
 #[test]
-fn pair_stats() {
-    let module = format!("apertium-{}", TEST_PAIR);
+fn hfst_pair_stats() {
+    let module = format!("apertium-{}", TEST_HFST_PAIR);
     let endpoint = format!("/{}", module);
 
     run_test!(|client| {
@@ -128,14 +128,14 @@ fn pair_stats() {
         assert_eq!(response.status(), Status::Accepted);
         let mut body = parse_response(response);
         let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
-        assert_eq!(in_progress.len(), TEST_PAIR_FILES_COUNT);
+        assert_eq!(in_progress.len(), TEST_HFST_PAIR_FILES_COUNT);
 
         wait_for_ok(&client, &endpoint, |response| {
             let body = parse_response(response);
             if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
                 assert_eq!(body["name"], module);
                 let stats = body["stats"].as_array().expect("valid stats");
-                assert_eq!(stats.len(), TEST_PAIR_STATS_COUNT);
+                assert_eq!(stats.len(), TEST_HFST_PAIR_STATS_COUNT);
                 assert!(
                     stats
                         .iter()
@@ -152,6 +152,42 @@ fn pair_stats() {
                 false
             }
         });
+    });
+}
+
+#[test]
+fn lt_pair_stats() {
+    let module = format!("apertium-{}", TEST_LT_PAIR);
+    let endpoint = format!("/{}?async=false", module);
+
+    run_test!(|client| {
+        let response = client.get(endpoint.clone()).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = parse_response(response);
+        let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+        assert_eq!(in_progress.len(), 0);
+
+        assert_eq!(body["name"], module);
+        let stats = body["stats"].as_array().expect("valid stats");
+        assert_eq!(stats.len(), TEST_LT_PAIR_STATS_COUNT);
+        assert!(
+            stats
+                .iter()
+                .map(|entry| (
+                    entry["stat_kind"].as_str().expect("kind is string"),
+                    entry["value"].as_i64().expect("value is i64")
+                ))
+                .all(|(kind, value)| kind == "Macros" || value > 0),
+            body["stats"].to_string(),
+        );
+
+        let mut files = stats
+            .iter()
+            .map(|entry| entry["path"].as_str().expect("path is string"))
+            .collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        assert_eq!(files.len(), TEST_LT_PAIR_FILES_COUNT);
     });
 }
 
