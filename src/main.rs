@@ -4,6 +4,7 @@
 #![allow(needless_pass_by_value)]
 #![allow(suspicious_else_formatting)]
 #![allow(print_literal)]
+#![allow(proc_macro_derive_resolution_fallback)]
 
 mod db;
 mod models;
