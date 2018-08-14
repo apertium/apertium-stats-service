@@ -8,7 +8,7 @@ before_script:
   - sudo apt-get install cg3
   - rustup component add rustfmt-preview
   - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
-  - cargo install diesel_cli || echo 'diesel_cli already installed'
+  - cargo install diesel_cli --version $DIESEL_CLI_VERSION || echo 'diesel_cli already installed'
   - cargo install cargo-tarpaulin --version $TARPAULIN_VERSION || echo 'cargo-tarpaulin already installed'
 script:
   - cargo fmt -- --write-mode=diff
@@ -22,6 +22,7 @@ matrix:
       env:
         - CLIPPY_VERSION=0.0.196
         - TARPAULIN_VERSION=0.6.6
+        - DIESEL_CLI_VERSION=1.2.0
 notifications:
   on_failure: change
   on_success: change
