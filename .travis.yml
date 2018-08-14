@@ -9,7 +9,7 @@ before_script:
   - rustup component add rustfmt-preview
   - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
   - cargo install diesel_cli || echo 'diesel_cli already installed'
-  - cargo install cargo-tarpaulin || echo 'cargo-tarpaulin already installed'
+  - cargo install cargo-tarpaulin --version $TARPAULIN_VERSION || echo 'cargo-tarpaulin already installed'
 script:
   - cargo fmt -- --write-mode=diff
   - cargo clippy --verbose || cargo build --verbose # blocked by https://github.com/rust-lang-nursery/rust-clippy/issues/2727
@@ -19,8 +19,9 @@ after_success:
 matrix:
   include:
     - rust: nightly-2018-05-05
-      env: # updating this will cause cache invalidation
+      env:
         - CLIPPY_VERSION=0.0.196
+        - TARPAULIN_VERSION=0.6.6
 notifications:
   on_failure: change
   on_success: change
