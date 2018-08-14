@@ -1,5 +1,8 @@
 use std::{
-    collections::{hash_map::Entry, HashMap}, process::{Command, Output}, str, sync::{Arc, Mutex},
+    collections::{hash_map::Entry, HashMap},
+    process::{Command, Output},
+    str,
+    sync::{Arc, Mutex},
 };
 
 use chrono::{NaiveDateTime, Utc};
@@ -7,7 +10,8 @@ use diesel::{self, RunQueryDsl};
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use quick_xml::{
-    events::{attributes::Attribute, BytesText, Event}, Reader,
+    events::{attributes::Attribute, BytesText, Event},
+    Reader,
 };
 use slog::Logger;
 use tokio::prelude::{future::join_all, Future};
@@ -109,16 +113,18 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         name = Some(decode_bytes(e, &reader)?);
                     },
                     Ok(Event::Text(ref e)) if in_date => {
-                        date = Some(NaiveDateTime::parse_from_str(
-                            &decode_bytes(e, &reader)?.to_string(),
-                            "%Y-%m-%dT%H:%M:%S.%fZ",
-                        ).map_err(|err| {
-                            format!(
-                                "Datetime parsing error at position {}: {:?}",
-                                reader.buffer_position(),
-                                err,
-                            )
-                        })?);
+                        date = Some(
+                            NaiveDateTime::parse_from_str(
+                                &decode_bytes(e, &reader)?.to_string(),
+                                "%Y-%m-%dT%H:%M:%S.%fZ",
+                            ).map_err(|err| {
+                                format!(
+                                    "Datetime parsing error at position {}: {:?}",
+                                    reader.buffer_position(),
+                                    err,
+                                )
+                            })?,
+                        );
                     },
                     Ok(Event::Text(ref e)) if in_author => {
                         author = Some(decode_bytes(e, &reader)?);

@@ -1,5 +1,7 @@
 use std::{
-    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet}, io::{BufRead, BufReader}, iter::FromIterator,
+    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
+    io::{BufRead, BufReader},
+    iter::FromIterator,
 };
 
 use hyper::Chunk;
@@ -85,7 +87,8 @@ fn parse_line(
             update_lexicons(current_lexicon, lexicons, lemma, continuation_lexicon);
             Ok(())
         } else {
-            let mut split = line.split(';')
+            let mut split = line
+                .split(';')
                 .next()
                 .ok_or_else(|| make_parse_error(line_number, "failed to split at ;"))?
                 .trim()
@@ -110,7 +113,8 @@ fn parse_line(
             Ok(())
         }
     } else if token_count == 2 {
-        let lexicon_pointer = line.split(';')
+        let lexicon_pointer = line
+            .split(';')
             .next()
             .ok_or_else(|| make_parse_error(line_number, "failed to get lexicon pointer"))?
             .trim();

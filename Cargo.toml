@@ -9,16 +9,16 @@ license = "GPLv3"
 [dependencies]
 chrono = { version = "0.4.2", features = ["serde"] }
 diesel = { version = "1.2.2", features = ["sqlite", "serde_json", "chrono", "r2d2"] }
-diesel-derive-enum = { version = "0.4.3", features = ["sqlite"] }
+diesel-derive-enum = { version = "0.4.4", features = ["sqlite"] }
 dotenv = "0.11.0"
 hyper = "0.12.0"
 hyper-tls = "0.2.0"
 lazy_static = "1.0.0"
 quick-xml = "0.12.1"
 regex = "1.0.0"
-rocket = "0.3.10"
-rocket_codegen = "0.3.10"
-rocket_contrib = { version = "0.3.10", default-features = false, features = ["json"] }
+rocket = "0.3.15"
+rocket_codegen = "0.3.15"
+rocket_contrib = { version = "0.3.15", default-features = false, features = ["json"] }
 rocket_cors = "0.2.3"
 serde = "1.0.45"
 serde_derive = "1.0.45"

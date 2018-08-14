@@ -4,6 +4,7 @@
 #![allow(needless_pass_by_value)]
 #![allow(suspicious_else_formatting)]
 #![allow(print_literal)]
+#![allow(proc_macro_derive_resolution_fallback)]
 
 mod db;
 mod models;
@@ -49,7 +50,8 @@ use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use rocket::{
-    http::{Method, Status}, State,
+    http::{Method, Status},
+    State,
 };
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};

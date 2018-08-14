@@ -11,7 +11,7 @@ RUN apt-get -qq update && \
         libssl-dev \
         make \
         pkg-config
-RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-07-16
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /src
@@ -20,7 +20,7 @@ RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release && r
 COPY . .
 RUN cargo build --release
 
-RUN cargo install diesel_cli --no-default-features --features "sqlite"
+RUN cargo install diesel_cli --version 1.2.0 --no-default-features --features "sqlite"
 RUN diesel database setup
 
 ENTRYPOINT ["cargo"]
