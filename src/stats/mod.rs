@@ -2,7 +2,9 @@ mod lexc;
 mod xml;
 
 use std::{
-    io::{self, BufRead, BufReader, Write}, process::{Command, Output}, str,
+    io::{self, BufRead, BufReader, Write},
+    process::{Command, Output},
+    str,
 };
 
 use hyper::{client::connect::HttpConnector, Client, Error as HyperError};
@@ -54,10 +56,12 @@ pub fn get_file_stats(
                     let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
                     rlx_file.write_all(&*body).map_err(StatsError::Io)?;
                     let output = Command::new("cg-comp")
-                        .arg(rlx_file
-                            .path()
-                            .to_str()
-                            .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?)
+                        .arg(
+                            rlx_file
+                                .path()
+                                .to_str()
+                                .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
+                        )
                         .arg("/dev/null")
                         .output();
 

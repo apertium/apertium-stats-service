@@ -49,7 +49,8 @@ use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use rocket::{
-    http::{Method, Status}, State,
+    http::{Method, Status},
+    State,
 };
 use rocket_contrib::{Json, Value};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};

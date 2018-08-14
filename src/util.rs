@@ -1,12 +1,18 @@
 use std::{default::Default, error::Error, io::Write, ops::Try};
 
 use diesel::{
-    backend::Backend, deserialize::{self, FromSql}, serialize::{self, Output, ToSql}, sql_types::Binary,
-    sqlite::Sqlite, types::IsNull,
+    backend::Backend,
+    deserialize::{self, FromSql},
+    serialize::{self, Output, ToSql},
+    sql_types::Binary,
+    sqlite::Sqlite,
+    types::IsNull,
 };
 use regex::RegexSet;
 use rocket::{
-    http::Status, response::{Responder, Response}, Request,
+    http::Status,
+    response::{Responder, Response},
+    Request,
 };
 use rocket_contrib::{Json, Value};
 use serde_json;
