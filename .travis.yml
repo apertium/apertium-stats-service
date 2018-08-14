@@ -21,7 +21,7 @@ matrix:
     - rust: nightly-2018-05-05
       env:
         - CLIPPY_VERSION=0.0.196
-        - TARPAULIN_VERSION=0.6.6
+        - TARPAULIN_VERSION=0.6.0
         - DIESEL_CLI_VERSION=1.2.0
 notifications:
   on_failure: change
