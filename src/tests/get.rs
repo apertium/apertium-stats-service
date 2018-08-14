@@ -32,7 +32,8 @@ fn invalid_package_stats() {
 #[test]
 fn nonexistent_kind_package_stats() {
     run_test!(|client| {
-        let response = client.get("/kaz/monodix").dispatch();
+        let endpoint = format!("/{}/monodix", TEST_HFST_MODULE);
+        let response = client.get(endpoint).dispatch();
         assert_eq!(response.status(), Status::NotFound);
         let body = parse_response(response);
         assert_eq!(
@@ -48,7 +49,8 @@ fn nonexistent_kind_package_stats() {
 #[test]
 fn invalid_kind_package_stats() {
     run_test!(|client| {
-        let response = client.get("/kaz/dix").dispatch();
+        let endpoint = format!("/{}/dix", TEST_HFST_MODULE);
+        let response = client.get(endpoint).dispatch();
         assert_eq!(response.status(), Status::BadRequest);
         let body = parse_response(response);
         assert_eq!(
@@ -117,8 +119,8 @@ fn module_stats() {
 }
 
 #[test]
-fn pair_stats() {
-    let module = format!("apertium-{}", TEST_PAIR);
+fn hfst_pair_stats() {
+    let module = format!("apertium-{}", TEST_HFST_PAIR);
     let endpoint = format!("/{}", module);
 
     run_test!(|client| {
@@ -126,14 +128,14 @@ fn pair_stats() {
         assert_eq!(response.status(), Status::Accepted);
         let mut body = parse_response(response);
         let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
-        assert_eq!(in_progress.len(), TEST_PAIR_FILES_COUNT);
+        assert_eq!(in_progress.len(), TEST_HFST_PAIR_FILES_COUNT);
 
         wait_for_ok(&client, &endpoint, |response| {
             let body = parse_response(response);
             if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
                 assert_eq!(body["name"], module);
                 let stats = body["stats"].as_array().expect("valid stats");
-                assert_eq!(stats.len(), TEST_PAIR_STATS_COUNT);
+                assert_eq!(stats.len(), TEST_HFST_PAIR_STATS_COUNT);
                 assert!(
                     stats
                         .iter()
@@ -154,49 +156,83 @@ fn pair_stats() {
 }
 
 #[test]
-fn module_specific_stats() {
-    let module = format!("apertium-{}", TEST_LT_MODULE);
-    let endpoint = format!("/{}/monodix", module);
+fn lt_pair_stats() {
+    let module = format!("apertium-{}", TEST_LT_PAIR);
+    let endpoint = format!("/{}?async=false", module);
 
     run_test!(|client| {
         let response = client.get(endpoint.clone()).dispatch();
-        assert_eq!(response.status(), Status::Accepted);
-        let mut body = parse_response(response);
-        let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
-        assert_eq!(in_progress.len(), 1);
+        assert_eq!(response.status(), Status::Ok);
+        let body = parse_response(response);
+        let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+        assert_eq!(in_progress.len(), 0);
 
-        wait_for_ok(&client, &endpoint, |response| {
-            let body = parse_response(response);
-            if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
-                assert_eq!(body["name"], module);
-                let stats = body["stats"].as_array().expect("valid stats");
-                assert_eq!(stats.len(), 2);
-                assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", TEST_LT_MODULE));
-                assert_eq!(
-                    stats[0]["revision"].as_i64().expect("revision1 is i64"),
-                    stats[0]["revision"].as_i64().expect("revision2 is i64")
-                );
-                let value1 = stats[0]["value"].as_i64().expect("value is i64");
-                assert!(value1 > 500, value1);
-                let value2 = stats[1]["value"].as_i64().expect("value is i64");
-                assert!(value2 > 500, value2);
+        assert_eq!(body["name"], module);
+        let stats = body["stats"].as_array().expect("valid stats");
+        assert_eq!(stats.len(), TEST_LT_PAIR_STATS_COUNT);
+        assert!(
+            stats
+                .iter()
+                .map(|entry| (
+                    entry["stat_kind"].as_str().expect("kind is string"),
+                    entry["value"].as_i64().expect("value is i64")
+                ))
+                .all(|(kind, value)| kind == "Macros" || value > 0),
+            body["stats"].to_string(),
+        );
 
-                let response = client.get(endpoint.clone()).dispatch();
-                assert_eq!(response.status(), Status::Ok);
-                let body = parse_response(response);
-                assert_eq!(body["name"], module);
-                assert!(
-                    body["in_progress"].as_array().expect("valid in_progress").is_empty(),
-                    body["in_progress"].to_string()
-                );
-                assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
-
-                true
-            } else {
-                false
-            }
-        });
+        let mut files = stats
+            .iter()
+            .map(|entry| entry["path"].as_str().expect("path is string"))
+            .collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        assert_eq!(files.len(), TEST_LT_PAIR_FILES_COUNT);
     });
+}
+
+#[test]
+fn pair_specific_stats() {
+    let kinds = [("transfer", 12), ("bidix", 1)];
+
+    for (kind, stat_count) in kinds.iter() {
+        let module = format!("apertium-{}", TEST_LT_PAIR);
+        let endpoint = format!("/{}/{}?async=false", module, kind);
+
+        run_test!(|client| {
+            let response = client.get(endpoint.clone()).dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            let body = parse_response(response);
+            let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+            assert_eq!(in_progress.len(), 0);
+
+            assert_eq!(body["name"], module);
+            let stats = body["stats"].as_array().expect("valid stats");
+            assert_eq!(stats.len(), *stat_count);
+        });
+    }
+}
+
+#[test]
+fn module_specific_stats() {
+    let kinds = [("monodix", 2), ("rlx", 1), ("postdix", 1)];
+
+    for (kind, stat_count) in kinds.iter() {
+        let module = format!("apertium-{}", TEST_LT_MODULE);
+        let endpoint = format!("/{}/{}?async=false", module, kind);
+
+        run_test!(|client| {
+            let response = client.get(endpoint.clone()).dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            let body = parse_response(response);
+            let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+            assert_eq!(in_progress.len(), 0);
+
+            assert_eq!(body["name"], module);
+            let stats = body["stats"].as_array().expect("valid stats");
+            assert_eq!(stats.len(), *stat_count);
+        });
+    }
 }
 
 #[test]
