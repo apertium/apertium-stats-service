@@ -192,67 +192,54 @@ fn lt_pair_stats() {
 }
 
 #[test]
-fn module_specific_stats() {
-    let module = format!("apertium-{}", TEST_LT_MODULE);
-    let endpoint = format!("/{}/monodix", module);
+fn pair_specific_stats() {
+    let kinds = [
+        ("transfer", 12),
+        ("bidix", 1),
+    ];
 
-    run_test!(|client| {
-        let response = client.get(endpoint.clone()).dispatch();
-        assert_eq!(response.status(), Status::Accepted);
-        let mut body = parse_response(response);
-        let in_progress = body["in_progress"].as_array_mut().expect("valid in_progress");
-        assert_eq!(in_progress.len(), 1);
+    for (kind, stat_count) in kinds.iter() {
+        let module = format!("apertium-{}", TEST_LT_PAIR);
+        let endpoint = format!("/{}/{}?async=false", module, kind);
 
-        wait_for_ok(&client, &endpoint, |response| {
+        run_test!(|client| {
+            let response = client.get(endpoint.clone()).dispatch();
+            assert_eq!(response.status(), Status::Ok);
             let body = parse_response(response);
-            if body["in_progress"].as_array().expect("valid in_progress").is_empty() {
-                assert_eq!(body["name"], module);
-                let stats = body["stats"].as_array().expect("valid stats");
-                assert_eq!(stats.len(), 2);
-                assert_eq!(stats[0]["path"], format!("apertium-{0}.{0}.dix", TEST_LT_MODULE));
-                assert_eq!(
-                    stats[0]["revision"].as_i64().expect("revision1 is i64"),
-                    stats[0]["revision"].as_i64().expect("revision2 is i64")
-                );
-                let value1 = stats[0]["value"].as_i64().expect("value is i64");
-                assert!(value1 > 500, value1);
-                let value2 = stats[1]["value"].as_i64().expect("value is i64");
-                assert!(value2 > 500, value2);
+            let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+            assert_eq!(in_progress.len(), 0);
 
-                let response = client.get(endpoint.clone()).dispatch();
-                assert_eq!(response.status(), Status::Ok);
-                let body = parse_response(response);
-                assert_eq!(body["name"], module);
-                assert!(
-                    body["in_progress"].as_array().expect("valid in_progress").is_empty(),
-                    body["in_progress"].to_string()
-                );
-                assert_eq!(body["stats"].as_array().expect("valid stats").len(), 2);
-
-                true
-            } else {
-                false
-            }
+            assert_eq!(body["name"], module);
+            let stats = body["stats"].as_array().expect("valid stats");
+            assert_eq!(stats.len(), *stat_count);
         });
-    });
+    }
 }
 
 #[test]
-fn pair_specific_stats() {
-    let module = format!("apertium-{}", TEST_LT_PAIR);
-    let endpoint = format!("/{}/transfer?async=false", module);
+fn module_specific_stats() {
+    let kinds = [
+        ("monodix", 2),
+        ("rlx", 1),
+        ("postdix", 1),
+    ];
 
-    run_test!(|client| {
-        let response = client.get(endpoint.clone()).dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        let body = parse_response(response);
-        let in_progress = body["in_progress"].as_array().expect("valid in_progress");
-        assert_eq!(in_progress.len(), 0);
+    for (kind, stat_count) in kinds.iter() {
+        let module = format!("apertium-{}", TEST_LT_MODULE);
+        let endpoint = format!("/{}/{}?async=false", module, kind);
 
-        assert_eq!(body["name"], module);
-        let stats = body["stats"].as_array().expect("valid stats");
-        assert_eq!(stats.len(), 12);
-    });
+        run_test!(|client| {
+            let response = client.get(endpoint.clone()).dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            let body = parse_response(response);
+            let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+            assert_eq!(in_progress.len(), 0);
+
+            assert_eq!(body["name"], module);
+            let stats = body["stats"].as_array().expect("valid stats");
+            assert_eq!(stats.len(), *stat_count);
+        });
+    }
 }
 
 #[test]
