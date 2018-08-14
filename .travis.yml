@@ -7,18 +7,18 @@ before_script:
   - wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
   - sudo apt-get install cg3
   - rustup component add rustfmt-preview
-  - cargo install clippy --version $CLIPPY_VERSION || echo 'clippy already installed'
+  - rustup component add clippy-preview
   - cargo install diesel_cli --version $DIESEL_CLI_VERSION || echo 'diesel_cli already installed'
   - cargo install cargo-tarpaulin --version $TARPAULIN_VERSION || echo 'cargo-tarpaulin already installed'
 script:
-  - cargo fmt -- --write-mode=diff
+  - cargo fmt -- --check
   - cargo clippy --verbose || cargo build --verbose # blocked by https://github.com/rust-lang-nursery/rust-clippy/issues/2727
   - cargo test --verbose
 after_success:
   - cargo tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 matrix:
   include:
-    - rust: nightly-2018-05-05
+    - rust: nightly-2018-07-16
       env:
         - CLIPPY_VERSION=0.0.196
         - TARPAULIN_VERSION=0.6.0
