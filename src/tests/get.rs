@@ -108,7 +108,10 @@ fn module_stats() {
                     body["in_progress"].as_array().expect("valid in_progress").is_empty(),
                     body["in_progress"].to_string()
                 );
-                assert_eq!(body["stats"].as_array().expect("valid stats").len(), 5);
+                assert_eq!(
+                    body["stats"].as_array().expect("valid stats").len(),
+                    TEST_HFST_MODULE_STATS_COUNT
+                );
 
                 true
             } else {
