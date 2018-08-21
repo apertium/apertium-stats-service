@@ -137,7 +137,7 @@ fn parse_line(
     }
 }
 
-pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>, StatsError> {
+fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(StatKind, Value), StatsError> {
     let mut current_lexicon: Option<String> = None;
     let mut lexicons: Lexicons = HashMap::new();
 
@@ -146,7 +146,8 @@ pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>,
         static ref CLEAN_COMMENTS_RE: Regex = Regex::new(r"!.*$").unwrap();
     }
 
-    for (line_number, line) in BufReader::new(&*body).lines().filter_map(|line| line.ok()).enumerate() {
+    for (line_number, line) in lines.iter().enumerate() {
+        let vanilla = !line.contains("Use/MT");
         let unescaped_line = ESCAPE_RE.replace_all(&line, r"\1");
         let without_comments_line = CLEAN_COMMENTS_RE.replace(&unescaped_line, "");
         let clean_line = without_comments_line.trim();
@@ -157,7 +158,7 @@ pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>,
                 .nth(1)
                 .ok_or_else(|| StatsError::Lexc(format!("LEXICON start missing <space> (L{})", line_number)))?;
             current_lexicon = Some(lexicon_name.to_string());
-        } else if !clean_line.is_empty() && current_lexicon.is_some() {
+        } else if !clean_line.is_empty() && current_lexicon.is_some() && (!vanilla_only || vanilla) {
             if let Err(err) = parse_line(
                 clean_line,
                 line_number,
@@ -175,8 +176,25 @@ pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>,
             .iter()
             .flat_map(|lexicon| lexicons[lexicon].clone().1)
             .collect::<HashSet<_>>();
-        Ok(vec![(StatKind::Stems, json!(entries.len()))])
+
+        if vanilla_only {
+            Ok((StatKind::VanillaStems, json!(entries.len())))
+        } else {
+            Ok((StatKind::Stems, json!(entries.len())))
+        }
     } else {
         Err(StatsError::Lexc(String::from("Missing Root lexicon")))
     }
+}
+
+pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>, StatsError> {
+    let lines = BufReader::new(&*body)
+        .lines()
+        .filter_map(|line| line.ok())
+        .collect::<Vec<_>>();
+
+    Ok(vec![
+        get_stems(logger, &lines, true)?,
+        get_stems(logger, &lines, false)?,
+    ])
 }

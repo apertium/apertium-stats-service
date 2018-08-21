@@ -14,8 +14,8 @@ pub enum FileKind {
     Postdix,     // emits Entries
     Rlx,         // emits Rules
     Transfer,    // emits Rules, Macros
-    Lexc,
-    Twol, // emits Rules
+    Lexc,        // emits Stems, VanillaStems
+    Twol,        // emits Rules
 }
 
 impl FileKind {
@@ -48,6 +48,7 @@ pub enum StatKind {
     Rules,
     Macros,
     Stems,
+    VanillaStems,
 }
 
 #[derive(Queryable, Serialize)]

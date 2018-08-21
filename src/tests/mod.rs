@@ -26,7 +26,7 @@ pub const TEST_LT_MODULE_STATS_COUNT: usize = 4;
 
 pub const TEST_HFST_MODULE: &str = "kaz";
 pub const TEST_HFST_MODULE_FILES_COUNT: usize = 5;
-pub const TEST_HFST_MODULE_STATS_COUNT: usize = 5;
+pub const TEST_HFST_MODULE_STATS_COUNT: usize = 6;
 
 pub const TEST_HFST_PAIR: &str = "kaz-tat";
 pub const TEST_HFST_PAIR_FILES_COUNT: usize = 7;
