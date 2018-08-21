@@ -180,6 +180,8 @@ components:
         - Paradigms
         - Rules
         - Macros
+        - Stems
+        - VanillaStems
     FileKind:
       type: string
       enum:
