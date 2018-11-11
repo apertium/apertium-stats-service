@@ -15,7 +15,7 @@ script:
   - cargo clippy --verbose
   - cargo test --verbose
 after_success:
-  - cargo tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  - cargo +nightly tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 matrix:
   include:
     - rust: nightly-2018-07-16
