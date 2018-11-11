@@ -10,7 +10,8 @@ RUN apt-get -qq update && \
         libsqlite3-dev \
         libssl-dev \
         make \
-        pkg-config
+        pkg-config \
+        subversion
 RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-07-16
 ENV PATH="/root/.cargo/bin:${PATH}"
 
