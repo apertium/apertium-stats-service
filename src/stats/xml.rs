@@ -1,7 +1,10 @@
 use std::str;
 
 use hyper::Chunk;
-use quick_xml::{events::Event, Reader};
+use quick_xml::{
+    events::{attributes::Attribute, Event},
+    Reader,
+};
 use serde_json::Value;
 
 use models::StatKind;
@@ -40,7 +43,7 @@ pub fn get_monodix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, 
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
     let mut buf = Vec::new();
 
-    let mut e_count = 0;
+    let mut stem_count = 0;
     let mut pardef_count = 0;
     let mut in_section = false;
     let mut in_pardefs = false;
@@ -49,7 +52,13 @@ pub fn get_monodix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, 
         match reader.read_event(&mut buf) {
             Ok(Event::Start(ref e)) if e.name() == b"section" => in_section = true,
             Ok(Event::Start(ref e)) if e.name() == b"pardefs" => in_pardefs = true,
-            Ok(Event::Start(ref e)) if in_section && e.name() == b"e" => e_count += 1,
+            Ok(Event::Start(ref e)) if in_section && e.name() == b"e" => {
+                if e.attributes()
+                    .any(|a| a.ok().map_or(false, |Attribute { key, .. }| key == b"lm"))
+                {
+                    stem_count += 1
+                }
+            },
             Ok(Event::Start(ref e)) if in_pardefs && e.name() == b"pardef" => pardef_count += 1,
             Ok(Event::End(ref e)) if e.name() == b"section" => in_section = false,
             Ok(Event::End(ref e)) if e.name() == b"pardefs" => in_pardefs = false,
@@ -68,7 +77,7 @@ pub fn get_monodix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, 
     }
 
     Ok(vec![
-        (StatKind::Entries, json!(e_count)),
+        (StatKind::Stems, json!(stem_count)),
         (StatKind::Paradigms, json!(pardef_count)),
     ])
 }

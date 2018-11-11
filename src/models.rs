@@ -7,7 +7,7 @@ use util::JsonValue;
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum FileKind {
-    Monodix,     // emits Entries, Paradigms
+    Monodix,     // emits Stems, Paradigms
     Bidix,       // emits Entries
     MetaMonodix, // emits Entries, Paradigms
     MetaBidix,   // emits Entries
