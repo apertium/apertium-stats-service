@@ -145,8 +145,7 @@ fn hfst_pair_stats() {
                         .map(|entry| (
                             entry["stat_kind"].as_str().expect("kind is string"),
                             entry["value"].as_i64().expect("value is i64")
-                        ))
-                        .all(|(kind, value)| kind == "Macros" || value > 0),
+                        )).all(|(kind, value)| kind == "Macros" || value > 0),
                     body["stats"].to_string(),
                 );
 
@@ -179,8 +178,7 @@ fn lt_pair_stats() {
                 .map(|entry| (
                     entry["stat_kind"].as_str().expect("kind is string"),
                     entry["value"].as_i64().expect("value is i64")
-                ))
-                .all(|(kind, value)| kind == "Macros" || value > 0),
+                )).all(|(kind, value)| kind == "Macros" || value > 0),
             body["stats"].to_string(),
         );
 
