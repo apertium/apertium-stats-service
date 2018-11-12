@@ -1,17 +1,12 @@
-FROM debian:jessie-slim
+FROM apertium/base
 LABEL maintainer sushain@skc.name
 
 RUN apt-get -qq update && \
     apt-get -qq install --no-install-recommends \
-        ca-certificates \
         curl \
-        gcc \
-        libc-dev \
-        libsqlite3-dev \
         libssl-dev \
-        make \
-        pkg-config \
-        subversion
+        libsqlite3-dev
+
 RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-08-24
 ENV PATH="/root/.cargo/bin:${PATH}"
 
