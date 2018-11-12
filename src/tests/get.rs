@@ -196,7 +196,7 @@ fn lt_pair_stats() {
 fn pair_specific_stats() {
     let kinds = [("transfer", 12), ("bidix", 1)];
 
-    for (kind, stat_count) in kinds.iter() {
+    for (kind, stat_count) in &kinds {
         let module = format!("apertium-{}", TEST_LT_PAIR);
         let endpoint = format!("/{}/{}?async=false", module, kind);
 
@@ -218,7 +218,7 @@ fn pair_specific_stats() {
 fn module_specific_stats() {
     let kinds = [("monodix", 2), ("rlx", 1), ("postdix", 1)];
 
-    for (kind, stat_count) in kinds.iter() {
+    for (kind, stat_count) in &kinds {
         let module = format!("apertium-{}", TEST_LT_MODULE);
         let endpoint = format!("/{}/{}?async=false", module, kind);
 

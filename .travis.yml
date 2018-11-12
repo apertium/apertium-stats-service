@@ -12,7 +12,7 @@ before_script:
   - cargo install diesel_cli --version $DIESEL_CLI_VERSION || echo 'diesel_cli already installed'
 script:
   - cargo fmt -- --check
-  - cargo clippy --verbose
+  - cargo clippy --all-targets --all-features -- -D warnings
   - cargo test --verbose
 after_success:
   - cargo tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
