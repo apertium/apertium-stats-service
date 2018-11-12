@@ -12,7 +12,7 @@ RUN apt-get -qq update && \
         make \
         pkg-config \
         subversion
-RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-07-16
+RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-08-24
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /src

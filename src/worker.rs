@@ -248,8 +248,7 @@ impl Worker {
                             None
                         }
                     })
-                })
-                .collect::<Vec<_>>();
+                }).collect::<Vec<_>>();
             info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks,);
 
             let future = join_all(
@@ -308,8 +307,7 @@ impl Worker {
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
-                        })
-                        .collect::<Vec<_>>();
+                        }).collect::<Vec<_>>();
                     diesel::insert_into(entries::table)
                         .values(&new_entries)
                         .execute(&*conn)
