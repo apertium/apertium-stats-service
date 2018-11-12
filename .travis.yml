@@ -8,7 +8,7 @@ before_script:
   - sudo apt-get install cg3
   - rustup component add rustfmt-preview
   - rustup component add clippy-preview
-  - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin --version $TARPAULIN_VERSION || echo 'cargo-tarpaulin already installed'
+  - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo +nightly install cargo-tarpaulin --version $TARPAULIN_VERSION || echo 'cargo-tarpaulin already installed'
   - cargo install diesel_cli --version $DIESEL_CLI_VERSION || echo 'diesel_cli already installed'
 script:
   - cargo fmt -- --check
