@@ -6,6 +6,7 @@ cache: cargo
 before_script:
   - wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
   - sudo apt-get install cg3
+  - rustup toolchain install nightly
   - rustup component add rustfmt-preview
   - rustup component add clippy-preview
   - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo +nightly install cargo-tarpaulin --version $TARPAULIN_VERSION || echo 'cargo-tarpaulin already installed'
