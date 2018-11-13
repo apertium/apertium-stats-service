@@ -329,7 +329,8 @@ fn rocket(database_url: String) -> rocket::Rocket {
                 calculate_specific_stats,
                 calculate_specific_stats_no_params,
             ],
-        ).attach(cors_options)
+        )
+        .attach(cors_options)
 }
 
 #[cfg_attr(tarpaulin, skip)]

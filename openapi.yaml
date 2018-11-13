@@ -212,6 +212,9 @@ components:
         revision:
           type: integer
           example: 13
+        sha:
+          type: string
+          example: 9f09e5e37aadb005fbd420e79803e506a8202f73
     Stats:
       type: array
       items:

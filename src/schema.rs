@@ -9,6 +9,7 @@ table! {
         created -> Timestamp,
         name -> Text,
         revision -> Integer,
+        sha -> Text,
         path -> Text,
         last_changed -> Timestamp,
         last_author -> Text,
