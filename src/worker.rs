@@ -80,20 +80,6 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             let mut in_file_entry = false;
             let (mut in_name, mut in_author, mut in_date, mut in_size) = (false, false, false, false);
             let (mut name, mut author, mut date, mut size, mut revision) = (None, None, None, None, None);
-            let sha_output = Command::new("svn")
-                .arg("propget")
-                .arg("git-commit")
-                .args("--revprop")
-                .args("-r")
-                .args("HEAD")
-                .arg(format!("{}/{}", ORGANIZATION_ROOT, name))
-                .output();
-            let mut sha = match sha_output {
-                Ok(Output { status2, ref stdout, .. }) if status2.success() => {
-                    let internal = String::from_utf8_lossy(stdout);
-                    Ok(internal)
-                }
-            }
             loop {
                 match reader.read_event(&mut buf) {
                     Ok(Event::Start(ref e)) if e.name() == b"entry" => {
@@ -158,37 +144,49 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                     Ok(Event::End(ref e)) if e.name() == b"size" => in_size = false,
                     Ok(Event::End(ref e)) if e.name() == b"entry" => {
                         if in_file_entry {
-                            match (name.clone(), size, revision, author.clone(), date, sha) {
-                                (Some(name), Some(size), Some(revision), Some(author), Some(date), Some(sha)) => {
+                            match (name.clone(), size, revision, author.clone(), date) {
+                                (Some(name), Some(size), Some(revision), Some(author), Some(date)) => {
+                                    let sha_output = Command::new("svn")
+                                        .arg("propget")
+                                        .arg("git-commit")
+                                        .arg("--revprop")
+                                        .arg("-r")
+                                        .arg("HEAD")
+                                        .arg(format!("{}/{}", ORGANIZATION_ROOT, name))
+                                        .output();
+                                    let sha = match sha_output {
+                                        Ok(Output { status, ref stdout, .. }) if status.success() => {
+                                            Ok(String::from_utf8_lossy(stdout))
+                                        }
+                                    };
+                                    let sha_string = sha.unwrap().to_string();
                                     trace!(
                                         logger,
                                         "Parsed file";
-                                        "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(), "sha" => sha.to_string(),
+                                        "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
                                     );
                                     files.push(File {
                                         path: name,
                                         size,
                                         revision,
-                                        sha,
                                         last_author: author,
                                         last_changed: date,
+                                        sha: sha_string
                                     });
                                 },
                                 _ => {
                                     warn!(
                                         logger,
                                         "Failed to fetch all file information";
-                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()), "sha" => sha
+                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string())
                                     );
                                 },
                             }
                         }
 
                         in_file_entry = false;
-                        name = None;
                         size = None;
                         revision = None;
-                        sha = None;
                         author = None;
                         date = None;
                     },
@@ -207,7 +205,6 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
         },
         Err(_) => Err(format!("Package search failed: {}", name)),
     }
-
 }
 
 impl Worker {
@@ -265,8 +262,7 @@ impl Worker {
                             None
                         }
                     })
-                })
-                .collect::<Vec<_>>();
+                }).collect::<Vec<_>>();
             info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks,);
 
             let future = join_all(
@@ -322,6 +318,7 @@ impl Worker {
                             file_kind: task.kind.clone(),
                             value: value.into(),
                             revision: task.file.revision,
+                            sha: task.file.sha,
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
