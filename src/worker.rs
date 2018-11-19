@@ -154,12 +154,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         .arg("HEAD")
                                         .arg(format!("{}/{}", ORGANIZATION_ROOT, name))
                                         .output();
-                                    let sha = match sha_output {
-                                        Ok(Output { status, ref stdout, .. }) if status.success() => {
-                                            Ok(String::from_utf8_lossy(stdout))
-                                        }
-                                    };
-                                    let sha_string = sha.unwrap().to_string();
+                                    let sha_string = String::from_utf8_lossy(&sha_output.stdout).to_string();
                                     trace!(
                                         logger,
                                         "Parsed file";
