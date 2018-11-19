@@ -166,7 +166,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         revision,
                                         last_author: author,
                                         last_changed: date,
-                                        sha: sha_string
+                                        sha: sha_string,
                                     });
                                 },
                                 _ => {
@@ -258,14 +258,19 @@ impl Worker {
                         }
                     })
                 }).collect::<Vec<_>>();
-            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks,);
+            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
 
             let future = join_all(
                 new_tasks
                     .iter()
                     .map(|task| self.launch_task(&logger, client, name, task))
                     .collect::<Vec<_>>(),
-            ).map(|entries| entries.into_iter().flat_map(|x| x).collect());
+            ).map(|entries| {
+                entries
+                    .into_iter()
+                    .flat_map(|x| x.0.unwrap_or_else(|| vec![]).clone())
+                    .collect()
+            });
             let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
 
             Ok((new_tasks, in_progress_tasks, future))
@@ -278,7 +283,7 @@ impl Worker {
         client: &Client<HttpsConnector<HttpConnector>>,
         package_name: &str,
         task: &Task,
-    ) -> impl Future<Item = Vec<NewEntry>, Error = ()> {
+    ) -> impl Future<Item = (Option<Vec<NewEntry>>, Option<String>), Error = ()> {
         let current_tasks_guard = self.current_tasks.clone();
         let pool = self.pool.clone();
         let task = task.clone();
@@ -301,7 +306,7 @@ impl Worker {
             match maybe_stats {
                 Ok(stats) => {
                     debug!(logger, "Completed executing task");
-                    let conn = pool.get().expect("database connection");
+
                     let new_entries = stats
                         .into_iter()
                         .map(|(kind, value)| NewEntry {
@@ -317,18 +322,28 @@ impl Worker {
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
-                        })
-                        .collect::<Vec<_>>();
-                    diesel::insert_into(entries::table)
-                        .values(&new_entries)
-                        .execute(&*conn)
-                        .unwrap();
+                        }).collect::<Vec<_>>();
 
-                    Ok(new_entries)
+                    match pool.get() {
+                        Ok(conn) => {
+                            diesel::insert_into(entries::table)
+                                .values(&new_entries)
+                                .execute(&*conn)
+                                .unwrap();
+                            Ok((Some(new_entries), None))
+                        },
+                        Err(err) => {
+                            error!(logger, "Error persisting task results: {:?}", err);
+                            Ok((
+                                Some(new_entries),
+                                Some(format!("Error persisting task results: {:?}", err)),
+                            ))
+                        },
+                    }
                 },
                 Err(err) => {
                     error!(logger, "Error executing task: {:?}", err);
-                    Ok(vec![])
+                    Ok((None, Some(format!("Error executing task: {:?}", err))))
                 },
             }
         })
