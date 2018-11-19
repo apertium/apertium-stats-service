@@ -27,9 +27,9 @@ pub struct File {
     pub path: String,
     pub size: i32,
     pub revision: i32,
-    pub sha: String,
     pub last_author: String,
     pub last_changed: NaiveDateTime,
+    pub sha: String,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -80,6 +80,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             let mut in_file_entry = false;
             let (mut in_name, mut in_author, mut in_date, mut in_size) = (false, false, false, false);
             let (mut name, mut author, mut date, mut size, mut revision) = (None, None, None, None, None);
+
             loop {
                 match reader.read_event(&mut buf) {
                     Ok(Event::Start(ref e)) if e.name() == b"entry" => {
@@ -146,40 +147,38 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         if in_file_entry {
                             match (name.clone(), size, revision, author.clone(), date) {
                                 (Some(name), Some(size), Some(revision), Some(author), Some(date)) => {
-                                    let sha_output = Command::new("svn")
-                                        .arg("propget")
-                                        .arg("git-commit")
-                                        .arg("--revprop")
-                                        .arg("-r")
-                                        .arg("HEAD")
-                                        .arg(format!("{}/{}", ORGANIZATION_ROOT, name))
-                                        .output();
-                                    let sha_string = String::from_utf8_lossy(&sha_output.stdout).to_string();
                                     trace!(
                                         logger,
                                         "Parsed file";
                                         "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
                                     );
-                                    files.push(File {
-                                        path: name,
-                                        size,
-                                        revision,
-                                        last_author: author,
-                                        last_changed: date,
-                                        sha: sha_string,
-                                    });
+                                    let sha_output =
+                                        Command::new("git svn find-rev").arg(format!("{}", revision)).output();
+                                    if !sha_output.unwrap().status.success() {
+                                        break;
+                                    } else {
+                                        files.push(File {
+                                            path: name,
+                                            size,
+                                            revision,
+                                            last_author: author,
+                                            last_changed: date,
+                                            sha: String::from_utf8(sha_output.unwrap().stdout).unwrap(),
+                                        });
+                                    }
                                 },
                                 _ => {
                                     warn!(
                                         logger,
                                         "Failed to fetch all file information";
-                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string())
+                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()),
                                     );
                                 },
                             }
                         }
 
                         in_file_entry = false;
+                        name = None;
                         size = None;
                         revision = None;
                         author = None;
@@ -318,10 +317,10 @@ impl Worker {
                             file_kind: task.kind.clone(),
                             value: value.into(),
                             revision: task.file.revision,
-                            sha: task.file.sha,
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
+                            sha: task.file.sha,
                         }).collect::<Vec<_>>();
 
                     match pool.get() {
