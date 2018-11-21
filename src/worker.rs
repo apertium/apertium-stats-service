@@ -62,7 +62,14 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             .unescape_and_decode(&reader)
             .map_err(|err| format!("Decoding error at position {}: {:?}", reader.buffer_position(), err,))
     }
-
+    
+    let head_output = Command::new("svn info -r 'HEAD' | grep Revision | egrep -o \"[0-9]+\"").output();
+    let head_f = match head_output {
+        Ok(Output { status, ref stdout, .. }) if status.success() => String::from_utf8_lossy(stdout),
+        x => panic!("Unexpected invalid token {:?}", x),
+    };
+    let head_r = head_f.into_owned().to_string();
+    
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
@@ -144,34 +151,42 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                     Ok(Event::End(ref e)) if e.name() == b"name" => in_name = false,
                     Ok(Event::End(ref e)) if e.name() == b"size" => in_size = false,
                     Ok(Event::End(ref e)) if e.name() == b"entry" => {
+                        let mut sha_output = Command::new("svn propget git-commit")
+                            .arg("--revprop")
+                            .arg("-r")
+                            .arg("HEAD")
+                            .arg(format!("{}/{}", ORGANIZATION_ROOT, name.clone().unwrap()))
+                            .output();
+                        let mut sha_f = match sha_output {
+                            Ok(Output { status, ref stdout, .. }) if status.success() => {
+                                String::from_utf8_lossy(stdout)
+                            },
+                            x => panic!("Unexpected invalid token {:?}", x),
+                        };
+                        let sha_string = sha_f.into_owned().to_string();
                         if in_file_entry {
                             match (name.clone(), size, revision, author.clone(), date) {
                                 (Some(name), Some(size), Some(revision), Some(author), Some(date)) => {
                                     trace!(
                                         logger,
                                         "Parsed file";
-                                        "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
+                                        "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(), "sha" => sha_string.clone(),
                                     );
-                                    let sha_output =
-                                        Command::new("git svn find-rev").arg(format!("{}", revision)).output();
-                                    if !sha_output.unwrap().status.success() {
-                                        break;
-                                    } else {
-                                        files.push(File {
-                                            path: name,
-                                            size,
-                                            revision,
-                                            last_author: author,
-                                            last_changed: date,
-                                            sha: String::from_utf8(sha_output.unwrap().stdout).unwrap(),
-                                        });
-                                    }
+                                    files.push(File {
+                                        path: name,
+                                        size,
+                                        revision,
+                                        last_author: author,
+                                        last_changed: date,
+                                        sha: sha_string.clone(),
+                                    });
+
                                 },
                                 _ => {
                                     warn!(
                                         logger,
                                         "Failed to fetch all file information";
-                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()),
+                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()), "sha" => sha_string.clone(),
                                     );
                                 },
                             }
@@ -320,7 +335,7 @@ impl Worker {
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
-                            sha: task.file.sha,
+                            sha: task.file.sha.clone(),
                         }).collect::<Vec<_>>();
 
                     match pool.get() {
