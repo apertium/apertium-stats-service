@@ -100,9 +100,9 @@ fn launch_tasks_and_reply(
 
                 JsonResult::Err(
                     Some(Json(json!({
-                            "name": name,
-                            "in_progress": in_progress_tasks,
-                        }))),
+                        "name": name,
+                        "in_progress": in_progress_tasks,
+                    }))),
                     Status::Accepted,
                 )
             } else {
@@ -118,9 +118,9 @@ fn launch_tasks_and_reply(
         },
         Err(error) => JsonResult::Err(
             Some(Json(json!({
-                    "name": name,
-                    "error": error,
-                }))),
+                "name": name,
+                "error": error,
+            }))),
             Status::BadRequest,
         ),
     }
@@ -329,7 +329,8 @@ fn rocket(database_url: String) -> rocket::Rocket {
                 calculate_specific_stats,
                 calculate_specific_stats_no_params,
             ],
-        ).attach(cors_options)
+        )
+        .attach(cors_options)
 }
 
 #[cfg_attr(tarpaulin, skip)]
