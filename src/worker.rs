@@ -46,27 +46,27 @@ pub struct Worker {
     logger: Logger,
 }
 
-fn get_sha(
-    revision: Option<i32>,
-    query_name: &str,
-    used_revisions: &mut HashMap<Option<i32>, Option<String>>
+fn get_git_sha(
+    revision: i32,
+    name: &str,
+    revision_mapping: &mut HashMap<i32, Option<String>>
 ) -> Option<String> {
-    match used_revisions.entry(revision) {
+    match revision_mapping.entry(revision) {
         Vacant(entry) => {
             let get_sha = Command::new("svn")
                 .arg("propget")
                 .arg("git-commit")
                 .arg("--revprop")
                 .arg("-r")
-                .arg(revision.unwrap().to_string())
-                .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, query_name))
+                .arg(revision.to_string())
+                .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, name))
                 .output();
-
+            
             match get_sha {
                 Ok(Output { status, ref stdout, .. }) if status.success() => {
                     entry.insert(Some(format!("{}", String::from_utf8_lossy(stdout))));
                 },
-                Ok(Output { stderr: _, .. }) => {
+                Ok(Output { stderr, .. }) => {
                     entry.insert(Some(String::from("Unknown")));
                 },
                 Err(_) => {
@@ -77,7 +77,7 @@ fn get_sha(
         Occupied(_) => {},
     }
 
-    used_revisions.get(&revision).unwrap().clone()
+    revision_mapping.get(&revision).unwrap().clone()
 }
 
 fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
@@ -118,7 +118,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             let (mut name, mut author, mut date, mut size, mut revision, mut sha) =
                 (None, None, None, None, None, None);
 
-            let mut used_revisions: HashMap<Option<i32>, Option<String>> = HashMap::new();
+            let mut revision_mapping: HashMap<i32, Option<String>> = HashMap::new();
 
             loop {
                 match reader.read_event(&mut buf) {
@@ -145,7 +145,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         )
                                     })?);
 
-                                    sha = get_sha(revision, query_name, &mut used_revisions);
+                                    sha = get_git_sha(revision.unwrap(), query_name, &mut revision_mapping);
                                     
                                     break;
                                 }
