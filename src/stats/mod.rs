@@ -61,8 +61,7 @@ pub fn get_file_stats(
                                 .path()
                                 .to_str()
                                 .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
-                        )
-                        .arg("/dev/null")
+                        ).arg("/dev/null")
                         .output();
 
                     match output {
@@ -115,8 +114,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
                 format!(r"apertium-{re}\.{re}\.lexc$", re = re),
                 format!(r"apertium-{re}-{re}\.{re}\.twol$", re = re),
                 format!(r"apertium-{re}\.{re}\.twol$", re = re),
-            ])
-            .size_limit(50_000_000)
+            ]).size_limit(50_000_000)
             .build()
             .unwrap()
         };

@@ -30,8 +30,7 @@ pub fn normalize_name(name: &str) -> Result<String, String> {
         static ref RE: RegexSet = RegexSet::new(&[
             format!(r"^apertium-({re})$", re = LANG_CODE_RE),
             format!(r"^apertium-({re})-({re})$", re = LANG_CODE_RE),
-        ])
-        .unwrap();
+        ]).unwrap();
     }
 
     if RE.matches(&normalized_name).matched_any() {
