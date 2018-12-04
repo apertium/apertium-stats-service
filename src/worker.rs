@@ -74,18 +74,12 @@ fn get_git_sha(
                 },
                 Ok(Output { stderr, .. }) => {
                     let err = String::from_utf8_lossy(&stderr);
-                    error!(
-                        logger,
-                        "Error getting SHA corresponding to revision {}: {:?}", revision, err
-                    );
+                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err);
                     entry.insert(None);
                     None
                 },
                 Err(err) => {
-                    error!(
-                        logger,
-                        "Error getting SHA corresponding to revision {}: {:?}", revision, err
-                    );
+                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err);
                     entry.insert(None);
                     None
                 },
@@ -151,7 +145,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
-                                    let unwrapped_revision =
+                                    let raw_revision =
                                         decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
                                             format!(
                                                 "Revision number parsing error at position {}: {:?}",
@@ -161,7 +155,6 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         })?;
 
                                     sha = get_git_sha(&logger, &mut revision_mapping, unwrapped_revision, &svn_path);
-
                                     revision = Some(unwrapped_revision);
 
                                     break;
