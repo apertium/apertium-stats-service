@@ -1,5 +1,8 @@
 use std::{
-    collections::{hash_map::Entry, hash_map::Entry::{Occupied, Vacant}, HashMap},
+    collections::{
+        hash_map::Entry::{self, Occupied, Vacant},
+        HashMap
+    },
     process::{Command, Output},
     str,
     sync::{Arc, Mutex},
@@ -46,11 +49,7 @@ pub struct Worker {
     logger: Logger,
 }
 
-fn get_git_sha(
-    revision: i32,
-    name: &str,
-    revision_mapping: &mut HashMap<i32, Option<String>>
-) -> Option<String> {
+fn get_git_sha(revision: i32, name: &str, revision_mapping: &mut HashMap<i32, Option<String>>, logger: &Logger) -> Option<String> {
     match revision_mapping.entry(revision) {
         Vacant(entry) => {
             let get_sha = Command::new("svn")
@@ -64,20 +63,25 @@ fn get_git_sha(
             
             match get_sha {
                 Ok(Output { status, ref stdout, .. }) if status.success() => {
-                    entry.insert(Some(format!("{}", String::from_utf8_lossy(stdout))));
+                    let sha = Some(format!("{}", String::from_utf8_lossy(stdout)));
+                    entry.insert(sha.clone());
+                    sha
                 },
                 Ok(Output { stderr, .. }) => {
-                    entry.insert(Some(String::from("Unknown")));
+                    let err = String::from_utf8_lossy(&stderr);
+                    error!(logger, "Cannot get sha of revision: {}", err);
+                    entry.insert(None);
+                    None
                 },
-                Err(_) => {
-                    entry.insert(Some(String::from("Unknown")));
+                Err(err) => {
+                    error!(logger, "Cannot get sha of revision: {}", err);
+                    entry.insert(None);
+                    None
                 },
             }
         },
-        Occupied(_) => {},
+        Occupied(entry) => entry.get().to_owned(),
     }
-
-    revision_mapping.get(&revision).unwrap().clone()
 }
 
 fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
@@ -113,12 +117,11 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             let mut buf = Vec::new();
 
             let mut files = Vec::new();
+            let mut revision_mapping: HashMap<i32, Option<String>> = HashMap::new();
             let mut in_file_entry = false;
             let (mut in_name, mut in_author, mut in_date, mut in_size) = (false, false, false, false);
             let (mut name, mut author, mut date, mut size, mut revision, mut sha) =
                 (None, None, None, None, None, None);
-
-            let mut revision_mapping: HashMap<i32, Option<String>> = HashMap::new();
 
             loop {
                 match reader.read_event(&mut buf) {
@@ -145,7 +148,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         )
                                     })?);
 
-                                    sha = get_git_sha(revision.unwrap(), query_name, &mut revision_mapping);
+                                    sha = get_git_sha(revision.unwrap(), query_name, &mut revision_mapping, &logger);
                                     
                                     break;
                                 }
