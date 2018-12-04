@@ -51,9 +51,9 @@ pub struct Worker {
 
 fn get_git_sha(
     revision: i32,
-    svn_path: &str, 
+    svn_path: &str,
     revision_mapping: &mut HashMap<i32, Option<String>>,
-    logger: &Logger
+    logger: &Logger,
 ) -> Option<String> {
     match revision_mapping.entry(revision) {
         Vacant(entry) => {
@@ -202,7 +202,6 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         "Parsed file";
                                         "name" => name.clone(), "size" => size, "revision" => revision, "sha" => sha.clone(), "author" => author.clone(), "date" => date.to_string(),
                                     );
-                                    println!("{}, {}", sha.clone(), author.clone());
                                     files.push(File {
                                         path: name,
                                         size,
@@ -368,6 +367,8 @@ impl Worker {
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
                         }).collect::<Vec<_>>();
+
+                    println!("{}", task.file.sha.clone());
 
                     match pool.get() {
                         Ok(conn) => {
