@@ -1,7 +1,7 @@
 use std::{
     collections::{
         hash_map::Entry::{self, Occupied, Vacant},
-        HashMap
+        HashMap,
     },
     process::{Command, Output},
     str,
@@ -49,7 +49,12 @@ pub struct Worker {
     logger: Logger,
 }
 
-fn get_git_sha(revision: i32, name: &str, revision_mapping: &mut HashMap<i32, Option<String>>, logger: &Logger) -> Option<String> {
+fn get_git_sha(
+    revision: i32,
+    name: &str, 
+    revision_mapping: &mut HashMap<i32,
+    Option<String>>, logger: &Logger
+) -> Option<String> {
     match revision_mapping.entry(revision) {
         Vacant(entry) => {
             let get_sha = Command::new("svn")
@@ -60,7 +65,7 @@ fn get_git_sha(revision: i32, name: &str, revision_mapping: &mut HashMap<i32, Op
                 .arg(revision.to_string())
                 .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, name))
                 .output();
-            
+
             match get_sha {
                 Ok(Output { status, ref stdout, .. }) if status.success() => {
                     let sha = Some(format!("{}", String::from_utf8_lossy(stdout)));
@@ -149,7 +154,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                     })?);
 
                                     sha = get_git_sha(revision.unwrap(), query_name, &mut revision_mapping, &logger);
-                                    
+
                                     break;
                                 }
                             }
