@@ -145,14 +145,13 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
-                                    let raw_revision =
-                                        decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
-                                            format!(
-                                                "Revision number parsing error at position {}: {:?}",
-                                                reader.buffer_position(),
-                                                err,
-                                            )
-                                        })?;
+                                    let raw_revision = decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
++                                        format!(
++                                            "Revision number parsing error at position {}: {:?}",
++                                            reader.buffer_position(),
++                                            err,
++                                        )
++                                    })?;
 
                                     sha = get_git_sha(&logger, &mut revision_mapping, raw_revision, &svn_path);
                                     revision = Some(raw_revision);
