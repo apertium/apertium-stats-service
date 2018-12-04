@@ -68,13 +68,7 @@ fn get_git_sha(
 
             match get_sha {
                 Ok(Output { status, ref stdout, .. }) if status.success() => {
-                    let sha = Some(
-                        String::from_utf8_lossy(stdout)
-                        .into_owned()
-                        .as_str()
-                        .trim()
-                        .to_string(),
-                    );
+                    let sha = Some(String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string());
                     entry.insert(sha.clone());
                     sha
                 },
