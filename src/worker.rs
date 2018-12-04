@@ -68,18 +68,24 @@ fn get_git_sha(
 
             match get_sha {
                 Ok(Output { status, ref stdout, .. }) if status.success() => {
-                    let sha = Some(String::from_utf8_lossy(stdout).trim_end().to_string());
+                    let sha = Some((&String::from_utf8_lossy(stdout)).trim_end().to_string());
                     entry.insert(sha.clone());
                     sha
                 },
                 Ok(Output { stderr, .. }) => {
                     let err = String::from_utf8_lossy(&stderr);
-                    error!(logger, "Error getting SHA corresponding to revision {}: {:?}", revision, err);
+                    error!(
+                        logger,
+                        "Error getting SHA corresponding to revision {}: {:?}", revision, err
+                    );
                     entry.insert(None);
                     None
                 },
                 Err(err) => {
-                    error!(logger, "Error getting SHA corresponding to revision {}: {:?}", revision, err);
+                    error!(
+                        logger,
+                        "Error getting SHA corresponding to revision {}: {:?}", revision, err
+                    );
                     entry.insert(None);
                     None
                 },
@@ -145,13 +151,14 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
-                                    let unwrapped_revision = decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
-                                        format!(
-                                            "Revision number parsing error at position {}: {:?}",
-                                            reader.buffer_position(),
-                                            err,
-                                        )
-                                    })?;
+                                    let unwrapped_revision =
+                                        decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
+                                            format!(
+                                                "Revision number parsing error at position {}: {:?}",
+                                                reader.buffer_position(),
+                                                err,
+                                            )
+                                        })?;
 
                                     
                                     sha = get_git_sha(&logger, &mut revision_mapping, unwrapped_revision, &svn_path);
