@@ -154,8 +154,8 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                             )
                                         })?;
 
-                                    sha = get_git_sha(&logger, &mut revision_mapping, unwrapped_revision, &svn_path);
-                                    revision = Some(unwrapped_revision);
+                                    sha = get_git_sha(&logger, &mut revision_mapping, raw_revision, &svn_path);
+                                    revision = Some(raw_revision);
 
                                     break;
                                 }
