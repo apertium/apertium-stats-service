@@ -50,10 +50,10 @@ pub struct Worker {
 }
 
 fn get_git_sha(
+    logger: &Logger,
+    revision_mapping: &mut HashMap<i32, Option<String>>,
     revision: i32,
     svn_path: &str,
-    revision_mapping: &mut HashMap<i32, Option<String>>,
-    logger: &Logger,
 ) -> Option<String> {
     match revision_mapping.entry(revision) {
         Vacant(entry) => {
@@ -68,18 +68,18 @@ fn get_git_sha(
 
             match get_sha {
                 Ok(Output { status, ref stdout, .. }) if status.success() => {
-                    let sha = Some(format!("{}", String::from_utf8_lossy(stdout)));
+                    let sha = Some(String::from_utf8_lossy(stdout).trim_end().to_string());
                     entry.insert(sha.clone());
                     sha
                 },
                 Ok(Output { stderr, .. }) => {
                     let err = String::from_utf8_lossy(&stderr);
-                    error!(logger, "Cannot get sha of revision: {}", err);
+                    error!(logger, "Error getting SHA corresponding to revision {}: {:?}", revision, err);
                     entry.insert(None);
                     None
                 },
                 Err(err) => {
-                    error!(logger, "Cannot get sha of revision: {}", err);
+                    error!(logger, "Error getting SHA corresponding to revision {}: {:?}", revision, err);
                     entry.insert(None);
                     None
                 },
@@ -106,14 +106,14 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             .map_err(|err| format!("Decoding error at position {}: {:?}", reader.buffer_position(), err,))
     }
 
+    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
+
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
         .args(if recursive { vec!["--recursive"] } else { vec![] })
-        .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, name))
+        .arg(&svn_path)
         .output();
-
-    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
 
     match output {
         Ok(Output { status, ref stdout, .. }) if status.success() => {
@@ -145,15 +145,18 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
-                                    revision = Some(decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
+                                    let unwrapped_revision = decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
                                         format!(
                                             "Revision number parsing error at position {}: {:?}",
                                             reader.buffer_position(),
                                             err,
                                         )
-                                    })?);
+                                    })?;
 
-                                    sha = get_git_sha(revision.unwrap(), &svn_path, &mut revision_mapping, &logger);
+                                    
+                                    sha = get_git_sha(&logger, &mut revision_mapping, unwrapped_revision, &svn_path);
+
+                                    revision = Some(unwrapped_revision);
 
                                     break;
                                 }
@@ -367,8 +370,6 @@ impl Worker {
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
                         }).collect::<Vec<_>>();
-
-                    println!("{}", task.file.sha.clone());
 
                     match pool.get() {
                         Ok(conn) => {
