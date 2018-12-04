@@ -85,7 +85,7 @@ fn module_stats() {
         let revision = file["revision"].as_i64().expect("revision is i64");
         assert!(revision > 500, revision);
         let sha = file["sha"].as_str().expect("sha is str");
-        assert!(sha.len() == 40, sha);
+        assert_eq!(sha.len(), 40);
 
         wait_for_ok(&client, &endpoint, |response| {
             let mut body = parse_response(response);
@@ -99,8 +99,8 @@ fn module_stats() {
                 assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
                 let revision = stats[0]["revision"].as_i64().expect("revision is i64");
                 assert!(revision > 500, revision);
-                let sha = file["sha"].as_str().expect("sha is str");
-                assert!(sha.len() == 40, sha);
+                let sha = stats[0]["sha"].as_str().expect("sha is str");
+                assert_eq!(sha.len(), 40);
                 let value = stats[0]["value"].as_i64().expect("value is i64");
                 assert!(value > 15, value);
 
