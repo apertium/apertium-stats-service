@@ -74,12 +74,12 @@ fn get_git_sha(
                 },
                 Ok(Output { stderr, .. }) => {
                     let err = String::from_utf8_lossy(&stderr);
-                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err);
+                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
                     entry.insert(None);
                     None
                 },
                 Err(err) => {
-                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err);
+                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
                     entry.insert(None);
                     None
                 },
