@@ -10,7 +10,7 @@ use std::{
 use hyper::{client::connect::HttpConnector, Client, Error as HyperError};
 use hyper_tls::HttpsConnector;
 use regex::{Regex, RegexSet, RegexSetBuilder};
-use serde_json::Value;
+use rocket_contrib::json::JsonValue;
 use slog::Logger;
 use tempfile::NamedTempFile;
 use tokio::prelude::{Future, Stream};
@@ -35,7 +35,7 @@ pub fn get_file_stats(
     file_path: String,
     package_name: &str,
     file_kind: FileKind,
-) -> impl Future<Item = Vec<(StatKind, Value)>, Error = StatsError> {
+) -> impl Future<Item = Vec<(StatKind, JsonValue)>, Error = StatsError> {
     let url = format!("{}/{}/master/{}", ORGANIZATION_RAW_ROOT, package_name, file_path)
         .parse()
         .unwrap();
@@ -61,7 +61,8 @@ pub fn get_file_stats(
                                 .path()
                                 .to_str()
                                 .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
-                        ).arg("/dev/null")
+                        )
+                        .arg("/dev/null")
                         .output();
 
                     match output {
@@ -114,7 +115,8 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
                 format!(r"apertium-{re}\.{re}\.lexc$", re = re),
                 format!(r"apertium-{re}-{re}\.{re}\.twol$", re = re),
                 format!(r"apertium-{re}\.{re}\.twol$", re = re),
-            ]).size_limit(50_000_000)
+            ])
+            .size_limit(50_000_000)
             .build()
             .unwrap()
         };
