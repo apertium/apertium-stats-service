@@ -7,7 +7,7 @@ RUN apt-get -qq update && \
         libssl-dev \
         libsqlite3-dev
 
-RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-08-24
+RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2018-12-06
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /src

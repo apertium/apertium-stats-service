@@ -86,7 +86,8 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         in_file_entry = e.attributes().any(|attr| {
                             attr.map(|Attribute { value, key }| {
                                 decode_utf8(&key, &reader) == Ok("kind") && decode_utf8(&value, &reader) == Ok("file")
-                            }).unwrap_or(false)
+                            })
+                            .unwrap_or(false)
                         });
                     },
                     Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"author" => in_author = true,
@@ -117,7 +118,8 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                             NaiveDateTime::parse_from_str(
                                 &decode_bytes(e, &reader)?.to_string(),
                                 "%Y-%m-%dT%H:%M:%S.%fZ",
-                            ).map_err(|err| {
+                            )
+                            .map_err(|err| {
                                 format!(
                                     "Datetime parsing error at position {}: {:?}",
                                     reader.buffer_position(),
@@ -229,7 +231,7 @@ impl Worker {
                     get_file_kind(&file.path).and_then(|file_kind| {
                         let requested_kind = maybe_kind.map_or(true, |kind| kind == &file_kind);
                         let in_progress = match current_package_tasks {
-                            Entry::Occupied(ref occupied) => occupied.get().into_iter().any(
+                            Entry::Occupied(ref occupied) => occupied.get().iter().any(
                                 |Task {
                                      kind,
                                      file: File { path, .. },
@@ -248,7 +250,8 @@ impl Worker {
                             None
                         }
                     })
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
 
             let future = join_all(
@@ -256,7 +259,8 @@ impl Worker {
                     .iter()
                     .map(|task| self.launch_task(&logger, client, name, task))
                     .collect::<Vec<_>>(),
-            ).map(|entries| {
+            )
+            .map(|entries| {
                 entries
                     .into_iter()
                     .flat_map(|x| x.0.unwrap_or_else(|| vec![]).clone())
@@ -290,7 +294,8 @@ impl Worker {
             task.file.path.clone(),
             &package_name,
             task.kind.clone(),
-        ).then(move |maybe_stats| {
+        )
+        .then(move |maybe_stats| {
             let mut current_tasks = current_tasks_guard.lock().unwrap();
             Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
 
@@ -312,7 +317,8 @@ impl Worker {
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,
-                        }).collect::<Vec<_>>();
+                        })
+                        .collect::<Vec<_>>();
 
                     match pool.get() {
                         Ok(conn) => {

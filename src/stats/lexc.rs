@@ -6,7 +6,7 @@ use std::{
 
 use hyper::Chunk;
 use regex::Regex;
-use serde_json::Value;
+use rocket_contrib::json::JsonValue;
 use slog::Logger;
 
 use models::StatKind;
@@ -137,7 +137,7 @@ fn parse_line(
     }
 }
 
-fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(StatKind, Value), StatsError> {
+fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(StatKind, JsonValue), StatsError> {
     let mut current_lexicon: Option<String> = None;
     let mut lexicons: Lexicons = HashMap::new();
 
@@ -187,7 +187,7 @@ fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(S
     }
 }
 
-pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, Value)>, StatsError> {
+pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let lines = BufReader::new(&*body)
         .lines()
         .filter_map(|line| line.ok())

@@ -14,7 +14,7 @@ use rocket::{
     response::{Responder, Response},
     Request,
 };
-use rocket_contrib::{Json, Value};
+use rocket_contrib::json::JsonValue as RocketJsonValue;
 use serde_json;
 
 use LANG_CODE_RE;
@@ -30,7 +30,8 @@ pub fn normalize_name(name: &str) -> Result<String, String> {
         static ref RE: RegexSet = RegexSet::new(&[
             format!(r"^apertium-({re})$", re = LANG_CODE_RE),
             format!(r"^apertium-({re})-({re})$", re = LANG_CODE_RE),
-        ]).unwrap();
+        ])
+        .unwrap();
     }
 
     if RE.matches(&normalized_name).matched_any() {
@@ -41,13 +42,13 @@ pub fn normalize_name(name: &str) -> Result<String, String> {
 }
 
 pub enum JsonResult {
-    Ok(Json<Value>),
-    Err(Option<Json<Value>>, Status),
+    Ok(RocketJsonValue),
+    Err(Option<RocketJsonValue>, Status),
 }
 
 impl Try for JsonResult {
-    type Ok = Json<Value>;
-    type Error = (Option<Json<Value>>, Status);
+    type Ok = RocketJsonValue;
+    type Error = (Option<RocketJsonValue>, Status);
 
     fn into_result(self) -> Result<Self::Ok, Self::Error> {
         match self {
@@ -89,7 +90,7 @@ pub struct JsonType;
 
 #[derive(AsExpression, Debug, Clone, Serialize, FromSqlRow)]
 #[sql_type = "JsonType"]
-pub struct JsonValue(pub Value);
+pub struct JsonValue(pub RocketJsonValue);
 
 impl FromSql<JsonType, Sqlite> for JsonValue {
     fn from_sql(value: Option<&<Sqlite as Backend>::RawValue>) -> deserialize::Result<Self> {
@@ -108,8 +109,8 @@ impl ToSql<JsonType, Sqlite> for JsonValue {
     }
 }
 
-impl From<Value> for JsonValue {
-    fn from(value: Value) -> Self {
+impl From<RocketJsonValue> for JsonValue {
+    fn from(value: RocketJsonValue) -> Self {
         JsonValue(value)
     }
 }

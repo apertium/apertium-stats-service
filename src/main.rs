@@ -1,9 +1,8 @@
-#![feature(plugin, custom_attribute, try_trait, custom_derive)]
-#![plugin(rocket_codegen)]
-#![deny(clippy)]
-#![allow(needless_pass_by_value)]
-#![allow(suspicious_else_formatting)]
-#![allow(print_literal)]
+#![feature(custom_attribute, try_trait, custom_derive, proc_macro_hygiene, decl_macro)]
+#![deny(clippy::all)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::suspicious_else_formatting)]
+#![allow(clippy::print_literal)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
 mod db;
@@ -26,6 +25,7 @@ extern crate dotenv;
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
+#[macro_use]
 extern crate rocket;
 extern crate tempfile;
 #[macro_use]
@@ -51,9 +51,10 @@ use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use rocket::{
     http::{Method, Status},
+    request::Form,
     State,
 };
-use rocket_contrib::{Json, Value};
+use rocket_contrib::json::JsonValue;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use slog::{Drain, Logger};
 use tokio::{executor::current_thread::CurrentThread, prelude::Future, runtime::Runtime};
@@ -86,10 +87,10 @@ fn launch_tasks_and_reply(
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
             JsonResult::Err(
-                Some(Json(json!({
+                Some(json!({
                     "name": name,
                     "error": "No recognized files",
-                }))),
+                })),
                 Status::NotFound,
             )
         },
@@ -99,52 +100,52 @@ fn launch_tasks_and_reply(
                 RUNTIME.executor().spawn(detached_future);
 
                 JsonResult::Err(
-                    Some(Json(json!({
-                            "name": name,
-                            "in_progress": in_progress_tasks,
-                        }))),
+                    Some(json!({
+                        "name": name,
+                        "in_progress": in_progress_tasks,
+                    })),
                     Status::Accepted,
                 )
             } else {
                 match CurrentThread::new().block_on(future) {
-                    Ok(stats) => JsonResult::Ok(Json(json!({
+                    Ok(stats) => JsonResult::Ok(json!({
                         "name": name,
                         "stats": stats,
                         "in_progress": vec![] as Vec<Task>,
-                    }))),
+                    })),
                     Err(_err) => JsonResult::Err(None, Status::InternalServerError),
                 }
             }
         },
         Err(error) => JsonResult::Err(
-            Some(Json(json!({
-                    "name": name,
-                    "error": error,
-                }))),
+            Some(json!({
+                "name": name,
+                "error": error,
+            })),
             Status::BadRequest,
         ),
     }
 }
 
-fn parse_name_param(name: &str) -> Result<String, (Option<Json<Value>>, Status)> {
+fn parse_name_param(name: &str) -> Result<String, (Option<JsonValue>, Status)> {
     normalize_name(name).map_err(|err| {
         (
-            Some(Json(json!({
+            Some(json!({
                 "name": name,
                 "error": err,
-            }))),
+            })),
             Status::BadRequest,
         )
     })
 }
 
-fn parse_kind_param(name: &str, kind: &str) -> Result<FileKind, (Option<Json<Value>>, Status)> {
+fn parse_kind_param(name: &str, kind: &str) -> Result<FileKind, (Option<JsonValue>, Status)> {
     FileKind::from_string(kind).map_err(|err| {
         (
-            Some(Json(json!({
+            Some(json!({
                 "name": name,
                 "error": err,
-            }))),
+            })),
             Status::BadRequest,
         )
     })
@@ -169,8 +170,8 @@ calculates <kind> statistics for the specified package
 See openapi.yaml for full specification."
 }
 
-#[get("/<name>?<params>")]
-fn get_stats(name: String, params: Option<Params>, conn: DbConn, worker: State<Worker>) -> JsonResult {
+#[get("/<name>?<params..>")]
+fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
 
     let entries: Vec<models::Entry> = entries_db::table
@@ -183,15 +184,15 @@ fn get_stats(name: String, params: Option<Params>, conn: DbConn, worker: State<W
     if entries.is_empty() {
         if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
             JsonResult::Err(
-                Some(Json(json!({
+                Some(json!({
                     "name": name,
                     "in_progress": in_progress_tasks,
-                }))),
+                })),
                 Status::TooManyRequests,
             )
         } else {
             drop(conn);
-            launch_tasks_and_reply(&worker, name, None, params.unwrap_or_default())
+            launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
         }
     } else {
         let entries = entries_db::table
@@ -200,25 +201,19 @@ fn get_stats(name: String, params: Option<Params>, conn: DbConn, worker: State<W
             .order(entries_db::created)
             .load::<models::Entry>(&*conn)
             .map_err(|_| (None, Status::InternalServerError))?;
-        JsonResult::Ok(Json(json!({
+        JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
             "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
-        })))
+        }))
     }
 }
 
-// the no_params equivalents are required due to https://github.com/SergioBenitez/Rocket/issues/376
-#[get("/<name>")]
-fn get_stats_no_params(name: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
-    get_stats(name, None, conn, worker)
-}
-
-#[get("/<name>/<kind>?<params>")]
+#[get("/<name>/<kind>?<params..>")]
 fn get_specific_stats(
     name: String,
     kind: String,
-    params: Option<Params>,
+    params: Form<Option<Params>>,
     conn: DbConn,
     worker: State<Worker>,
 ) -> JsonResult {
@@ -237,17 +232,17 @@ fn get_specific_stats(
         if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
             if in_progress_tasks.iter().filter(|task| task.kind == file_kind).count() != 0 {
                 return JsonResult::Err(
-                    Some(Json(json!({
+                    Some(json!({
                         "name": name,
                         "in_progress": in_progress_tasks,
-                    }))),
+                    })),
                     Status::TooManyRequests,
                 );
             }
         }
 
         drop(conn);
-        launch_tasks_and_reply(&worker, name, Some(&file_kind), params.unwrap_or_default())
+        launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
     } else {
         let entries = entries_db::table
             .filter(entries_db::name.eq(&name))
@@ -256,40 +251,30 @@ fn get_specific_stats(
             .order(entries_db::created)
             .load::<models::Entry>(&*conn)
             .map_err(|_| (None, Status::InternalServerError))?;
-        JsonResult::Ok(Json(json!({
+        JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
             "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
-        })))
+        }))
     }
 }
 
-#[get("/<name>/<kind>")]
-fn get_specific_stats_no_params(name: String, kind: String, conn: DbConn, worker: State<Worker>) -> JsonResult {
-    get_specific_stats(name, kind, None, conn, worker)
-}
-
-#[post("/<name>?<params>")]
-fn calculate_stats(name: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
+#[post("/<name>?<params..>")]
+fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Worker>) -> JsonResult {
     let name = parse_name_param(&name)?;
-    launch_tasks_and_reply(&worker, name, None, params.unwrap_or_default())
+    launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
 }
 
-#[post("/<name>")]
-fn calculate_stats_no_params(name: String, worker: State<Worker>) -> JsonResult {
-    calculate_stats(name, None, worker)
-}
-
-#[post("/<name>/<kind>?<params>")]
-fn calculate_specific_stats(name: String, kind: String, params: Option<Params>, worker: State<Worker>) -> JsonResult {
+#[post("/<name>/<kind>?<params..>")]
+fn calculate_specific_stats(
+    name: String,
+    kind: String,
+    params: Form<Option<Params>>,
+    worker: State<Worker>,
+) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
-    launch_tasks_and_reply(&worker, name, Some(&file_kind), params.unwrap_or_default())
-}
-
-#[post("/<name>/<kind>")]
-fn calculate_specific_stats_no_params(name: String, kind: String, worker: State<Worker>) -> JsonResult {
-    calculate_specific_stats(name, kind, None, worker)
+    launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
 }
 
 fn create_logger() -> Logger {
@@ -321,15 +306,12 @@ fn rocket(database_url: String) -> rocket::Rocket {
             routes![
                 index,
                 get_stats,
-                get_stats_no_params,
                 get_specific_stats,
-                get_specific_stats_no_params,
                 calculate_stats,
-                calculate_stats_no_params,
                 calculate_specific_stats,
-                calculate_specific_stats_no_params,
             ],
-        ).attach(cors_options)
+        )
+        .attach(cors_options)
 }
 
 #[cfg_attr(tarpaulin, skip)]
