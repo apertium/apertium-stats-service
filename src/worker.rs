@@ -14,7 +14,11 @@ use quick_xml::{
     Reader,
 };
 use slog::Logger;
-use tokio::prelude::{future::join_all, Future};
+use tokio::{
+    executor::current_thread::CurrentThread,
+    prelude::{future::join_all, Future},
+};
+use tokio_process::CommandExt;
 
 use db::Pool;
 use models::{FileKind, NewEntry};
@@ -24,6 +28,15 @@ use ORGANIZATION_ROOT;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct File {
+    pub path: String,
+    pub size: i32,
+    pub revision: i32,
+    pub sha: String,
+    pub last_author: String,
+    pub last_changed: NaiveDateTime,
+}
+
+pub struct FileWithoutSha {
     pub path: String,
     pub size: i32,
     pub revision: i32,
@@ -45,7 +58,34 @@ pub struct Worker {
     logger: Logger,
 }
 
-fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
+fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Item = Option<String>, Error = ()> {
+    let sha_future = Command::new("svn")
+        .arg("propget")
+        .arg("git-commit")
+        .arg("--revprop")
+        .arg("-r")
+        .arg(revision.to_string())
+        .arg(svn_path)
+        .output_async();
+
+    sha_future.then(move |sha| match sha {
+        Ok(Output { status, ref stdout, .. }) if status.success() => {
+            let sha = String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string();
+            Ok(Some(sha))
+        },
+        Ok(Output { stderr, .. }) => {
+            let err = String::from_utf8_lossy(&stderr);
+            error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
+            Ok(None)
+        },
+        Err(err) => {
+            error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
+            Ok(None)
+        },
+    })
+}
+
+fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Vec<FileWithoutSha>, String> {
     fn decode_utf8<'a>(bytes: &'a [u8], reader: &Reader<&[u8]>) -> Result<&'a str, String> {
         str::from_utf8(bytes).map_err(|err| {
             format!(
@@ -62,11 +102,12 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             .map_err(|err| format!("Decoding error at position {}: {:?}", reader.buffer_position(), err,))
     }
 
+    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, package_name);
     let output = Command::new("svn")
         .arg("list")
         .arg("--xml")
         .args(if recursive { vec!["--recursive"] } else { vec![] })
-        .arg(format!("{}/{}/trunk", ORGANIZATION_ROOT, name))
+        .arg(&svn_path)
         .output();
 
     match output {
@@ -105,6 +146,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                             err,
                                         )
                                     })?);
+
                                     break;
                                 }
                             }
@@ -153,7 +195,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                         "Parsed file";
                                         "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
                                     );
-                                    files.push(File {
+                                    files.push(FileWithoutSha {
                                         path: name,
                                         size,
                                         revision,
@@ -162,7 +204,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                                     });
                                 },
                                 _ => {
-                                    warn!(
+                                    error!(
                                         logger,
                                         "Failed to fetch all file information";
                                         "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()),
@@ -191,7 +233,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             let error = String::from_utf8_lossy(&stderr);
             Err(format!("Package not found: {}", error))
         },
-        Err(_) => Err(format!("Package search failed: {}", name)),
+        Err(err) => Err(format!("Package search failed: {}", err)),
     }
 }
 
@@ -221,11 +263,11 @@ impl Worker {
             "recursive" => recursive,
         ));
 
-        list_files(&logger, name, recursive).and_then(|files| {
+        list_files(&logger, name, recursive).and_then(|files_without_shas| {
             let mut current_tasks = self.current_tasks.lock().unwrap();
             let current_package_tasks = current_tasks.entry(name.to_string());
 
-            let new_tasks = files
+            let requested_files = files_without_shas
                 .into_iter()
                 .filter_map(|file| {
                     get_file_kind(&file.path).and_then(|file_kind| {
@@ -241,19 +283,75 @@ impl Worker {
                             _ => false,
                         };
                         if requested_kind && !in_progress {
-                            Some(Task {
-                                kind: file_kind,
-                                file,
-                                created: Utc::now().naive_utc(),
-                            })
+                            Some((file_kind, file))
                         } else {
                             None
                         }
                     })
                 })
                 .collect::<Vec<_>>();
-            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
 
+            let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
+            let mut unique_revisions = requested_files
+                .iter()
+                .map(|(_, FileWithoutSha { revision, .. })| *revision)
+                .collect::<Vec<_>>();
+            unique_revisions.sort();
+            unique_revisions.dedup();
+            debug!(logger, "Found {} unique revisions", unique_revisions.len());
+
+            let new_tasks = match CurrentThread::new().block_on(join_all(
+                unique_revisions
+                    .iter()
+                    .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
+                    .collect::<Vec<_>>(),
+            )) {
+                Ok(shas) => {
+                    let revision_sha_mapping = unique_revisions
+                        .into_iter()
+                        .zip(shas)
+                        .collect::<HashMap<i32, Option<String>>>();
+                    debug!(
+                        logger,
+                        "Fetched Git SHAs for {} unique revisions",
+                        revision_sha_mapping.len()
+                    );
+
+                    let tasks = requested_files
+                        .into_iter()
+                        .filter_map(
+                            |(file_kind, FileWithoutSha {
+                                path,
+                                size,
+                                revision,
+                                last_author,
+                                last_changed,
+                            })| match revision_sha_mapping.get(&revision) {
+                                Some(Some(sha)) => Some(Task {
+                                    kind: file_kind,
+                                    file: File {
+                                        path,
+                                        size,
+                                        revision,
+                                        last_author,
+                                        last_changed,
+                                        sha: sha.to_string(),
+                                    },
+                                    created: Utc::now().naive_utc(),
+                                }),
+                                _ => {
+                                    error!(logger, "Missing SHA corresponding to file"; "path" => path, "revision" => revision);
+                                    None
+                                },
+                            },
+                        )
+                        .collect::<Vec<_>>();
+                    Ok(tasks)
+                },
+                Err(err) => Err(format!("Unable to fetch Git SHAs: {}", err)),
+            }?;
+
+            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
             let future = join_all(
                 new_tasks
                     .iter()
@@ -314,6 +412,7 @@ impl Worker {
                             file_kind: task.kind.clone(),
                             value: value.into(),
                             revision: task.file.revision,
+                            sha: task.file.sha.clone(),
                             size: task.file.size,
                             last_author: task.file.last_author.clone(),
                             last_changed: task.file.last_changed,

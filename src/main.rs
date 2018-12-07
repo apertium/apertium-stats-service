@@ -35,6 +35,7 @@ extern crate rocket_cors;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tokio;
+extern crate tokio_process;
 #[macro_use]
 extern crate slog;
 extern crate hyper;
