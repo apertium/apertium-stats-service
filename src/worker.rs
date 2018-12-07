@@ -330,13 +330,13 @@ impl Worker {
                                 Some(Some(sha)) => Some(Task {
                                     kind: file_kind,
                                     file: File {
-                                    path,
-                                    size,
-                                    revision,
-                                    last_author,
-                                    last_changed,
-                                    sha: sha.to_string(),
-                                },
+                                        path,
+                                        size,
+                                        revision,
+                                        last_author,
+                                        last_changed,
+                                        sha: sha.to_string(),
+                                    },
                                     created: Utc::now().naive_utc(),
                                 }),
                                 _ => {
