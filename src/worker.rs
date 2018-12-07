@@ -86,11 +86,7 @@ fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Ite
     })
 }
 
-fn process_svn_list_output(
-    logger: &Logger,
-    name: &str,
-    output: Result<Output, Error>,
-) -> Result<Vec<FileWithoutSha>, String> {
+fn process_svn_list_output(logger: &Logger, output: Result<Output, Error>) -> Result<Vec<FileWithoutSha>, String> {
     fn decode_utf8<'a>(bytes: &'a [u8], reader: &Reader<&[u8]>) -> Result<&'a str, String> {
         str::from_utf8(bytes).map_err(|err| {
             format!(
@@ -230,7 +226,7 @@ fn process_svn_list_output(
             let error = String::from_utf8_lossy(&stderr);
             Err(format!("Package not found: {}", error))
         },
-        Err(_) => Err(format!("Package search failed: {}", name)),
+        Err(err) => Err(format!("Package search failed: {}", err)),
     }
 }
 
@@ -242,7 +238,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
         .args(if recursive { vec!["--recursive"] } else { vec![] })
         .arg(&svn_path)
         .output();
-    let files_without_shas = process_svn_list_output(logger, name, output)?;
+    let files_without_shas = process_svn_list_output(logger, output)?;
 
     let mut unique_revisions = files_without_shas
         .iter()
@@ -250,6 +246,8 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
         .collect::<Vec<_>>();
     unique_revisions.sort();
     unique_revisions.dedup();
+    debug!(logger, "Found {} unique revisions", unique_revisions.len());
+
     match CurrentThread::new().block_on(join_all(
         unique_revisions
             .iter()
@@ -261,17 +259,36 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                 .into_iter()
                 .zip(shas)
                 .collect::<HashMap<i32, Option<String>>>();
+            debug!(
+                logger,
+                "Fetched Git SHAs for {} unique revisions",
+                revision_sha_mapping.len()
+            );
+
             let files = files_without_shas
                 .into_iter()
-                .filter_map(|FileWithoutSha {path, size, revision, last_author, last_changed}| match revision_sha_mapping.get(&revision) {
-                    Some(Some(sha)) => Some(File {path, size, revision, last_author, last_changed, sha: sha.to_string()}),
-                    _ => {
-                        error!(logger,
-                        "Missing SHA corresponding to file";
-                        "name" => name, "size" => size, "revision" => revision, "author" => last_author, "date" => last_changed.to_string());
-                        None
-                    }
-                })
+                .filter_map(
+                    |FileWithoutSha {
+                         path,
+                         size,
+                         revision,
+                         last_author,
+                         last_changed,
+                     }| match revision_sha_mapping.get(&revision) {
+                        Some(Some(sha)) => Some(File {
+                            path,
+                            size,
+                            revision,
+                            last_author,
+                            last_changed,
+                            sha: sha.to_string(),
+                        }),
+                        _ => {
+                            error!(logger, "Missing SHA corresponding to file"; "path" => path, "revision" => revision);
+                            None
+                        },
+                    },
+                )
                 .collect::<Vec<_>>();
             Ok(files)
         },
