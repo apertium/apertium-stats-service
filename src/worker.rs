@@ -1,5 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
+    io::Error,
     process::{Command, Output},
     str,
     sync::{Arc, Mutex},
@@ -68,25 +69,28 @@ fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Ite
         .arg(svn_path)
         .output_async();
 
-    sha_future
-        .then(move |sha| match sha {
-            Ok(Output { status, ref stdout, .. }) if status.success() => {
-                let sha = String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string();
-                Ok(Some(sha))
-            },
-            Ok(Output { stderr, .. }) => {
-                let err = String::from_utf8_lossy(&stderr);
-                error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
-                Ok(None)
-            },
-            Err(err) => {
-                 error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
-                Ok(None)
-            }
-        })
+    sha_future.then(move |sha| match sha {
+        Ok(Output { status, ref stdout, .. }) if status.success() => {
+            let sha = String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string();
+            Ok(Some(sha))
+        },
+        Ok(Output { stderr, .. }) => {
+            let err = String::from_utf8_lossy(&stderr);
+            error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
+            Ok(None)
+        },
+        Err(err) => {
+            error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
+            Ok(None)
+        },
+    })
 }
 
-fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
+fn process_svn_list_output(
+    logger: &Logger,
+    name: &str,
+    output: Result<Output, Error>,
+) -> Result<Vec<FileWithoutSha>, String> {
     fn decode_utf8<'a>(bytes: &'a [u8], reader: &Reader<&[u8]>) -> Result<&'a str, String> {
         str::from_utf8(bytes).map_err(|err| {
             format!(
@@ -103,16 +107,7 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             .map_err(|err| format!("Decoding error at position {}: {:?}", reader.buffer_position(), err,))
     }
 
-    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
-
-    let output = Command::new("svn")
-        .arg("list")
-        .arg("--xml")
-        .args(if recursive { vec!["--recursive"] } else { vec![] })
-        .arg(&svn_path)
-        .output();
-
-    let files_without_shas = match output {
+    match output {
         Ok(Output { status, ref stdout, .. }) if status.success() => {
             let xml = String::from_utf8_lossy(stdout);
             let mut reader = Reader::from_str(&xml);
@@ -236,11 +231,22 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             Err(format!("Package not found: {}", error))
         },
         Err(_) => Err(format!("Package search failed: {}", name)),
-    }?;
+    }
+}
+
+fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
+    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
+    let output = Command::new("svn")
+        .arg("list")
+        .arg("--xml")
+        .args(if recursive { vec!["--recursive"] } else { vec![] })
+        .arg(&svn_path)
+        .output();
+    let files_without_shas = process_svn_list_output(logger, name, output)?;
 
     let mut unique_revisions = files_without_shas
         .iter()
-        .map(|FileWithoutSha { revision, .. }| revision.clone())
+        .map(|FileWithoutSha { revision, .. }| *revision)
         .collect::<Vec<_>>();
     unique_revisions.sort();
     unique_revisions.dedup();
