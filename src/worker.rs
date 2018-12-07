@@ -1,6 +1,5 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
-    io::Error,
     process::{Command, Output},
     str,
     sync::{Arc, Mutex},
@@ -86,7 +85,7 @@ fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Ite
     })
 }
 
-fn process_svn_list_output(logger: &Logger, output: Result<Output, Error>) -> Result<Vec<FileWithoutSha>, String> {
+fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Vec<FileWithoutSha>, String> {
     fn decode_utf8<'a>(bytes: &'a [u8], reader: &Reader<&[u8]>) -> Result<&'a str, String> {
         str::from_utf8(bytes).map_err(|err| {
             format!(
@@ -102,6 +101,14 @@ fn process_svn_list_output(logger: &Logger, output: Result<Output, Error>) -> Re
             .unescape_and_decode(&reader)
             .map_err(|err| format!("Decoding error at position {}: {:?}", reader.buffer_position(), err,))
     }
+
+    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, package_name);
+    let output = Command::new("svn")
+        .arg("list")
+        .arg("--xml")
+        .args(if recursive { vec!["--recursive"] } else { vec![] })
+        .arg(&svn_path)
+        .output();
 
     match output {
         Ok(Output { status, ref stdout, .. }) if status.success() => {
@@ -230,72 +237,6 @@ fn process_svn_list_output(logger: &Logger, output: Result<Output, Error>) -> Re
     }
 }
 
-fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
-    let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
-    let output = Command::new("svn")
-        .arg("list")
-        .arg("--xml")
-        .args(if recursive { vec!["--recursive"] } else { vec![] })
-        .arg(&svn_path)
-        .output();
-    let files_without_shas = process_svn_list_output(logger, output)?;
-
-    let mut unique_revisions = files_without_shas
-        .iter()
-        .map(|FileWithoutSha { revision, .. }| *revision)
-        .collect::<Vec<_>>();
-    unique_revisions.sort();
-    unique_revisions.dedup();
-    debug!(logger, "Found {} unique revisions", unique_revisions.len());
-
-    match CurrentThread::new().block_on(join_all(
-        unique_revisions
-            .iter()
-            .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
-            .collect::<Vec<_>>(),
-    )) {
-        Ok(shas) => {
-            let revision_sha_mapping = unique_revisions
-                .into_iter()
-                .zip(shas)
-                .collect::<HashMap<i32, Option<String>>>();
-            debug!(
-                logger,
-                "Fetched Git SHAs for {} unique revisions",
-                revision_sha_mapping.len()
-            );
-
-            let files = files_without_shas
-                .into_iter()
-                .filter_map(
-                    |FileWithoutSha {
-                         path,
-                         size,
-                         revision,
-                         last_author,
-                         last_changed,
-                     }| match revision_sha_mapping.get(&revision) {
-                        Some(Some(sha)) => Some(File {
-                            path,
-                            size,
-                            revision,
-                            last_author,
-                            last_changed,
-                            sha: sha.to_string(),
-                        }),
-                        _ => {
-                            error!(logger, "Missing SHA corresponding to file"; "path" => path, "revision" => revision);
-                            None
-                        },
-                    },
-                )
-                .collect::<Vec<_>>();
-            Ok(files)
-        },
-        Err(err) => Err(format!("Unable to fetch Git SHAs: {}", err)),
-    }
-}
-
 impl Worker {
     pub fn new(pool: Pool, logger: Logger) -> Worker {
         Worker {
@@ -322,11 +263,11 @@ impl Worker {
             "recursive" => recursive,
         ));
 
-        list_files(&logger, name, recursive).and_then(|files| {
+        list_files(&logger, name, recursive).and_then(|files_without_shas| {
             let mut current_tasks = self.current_tasks.lock().unwrap();
             let current_package_tasks = current_tasks.entry(name.to_string());
 
-            let new_tasks = files
+            let requested_files = files_without_shas
                 .into_iter()
                 .filter_map(|file| {
                     get_file_kind(&file.path).and_then(|file_kind| {
@@ -342,19 +283,75 @@ impl Worker {
                             _ => false,
                         };
                         if requested_kind && !in_progress {
-                            Some(Task {
-                                kind: file_kind,
-                                file,
-                                created: Utc::now().naive_utc(),
-                            })
+                            Some((file_kind, file))
                         } else {
                             None
                         }
                     })
                 })
                 .collect::<Vec<_>>();
-            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
 
+            let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
+            let mut unique_revisions = requested_files
+                .iter()
+                .map(|(_, FileWithoutSha { revision, .. })| *revision)
+                .collect::<Vec<_>>();
+            unique_revisions.sort();
+            unique_revisions.dedup();
+            debug!(logger, "Found {} unique revisions", unique_revisions.len());
+
+            let new_tasks = match CurrentThread::new().block_on(join_all(
+                unique_revisions
+                    .iter()
+                    .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
+                    .collect::<Vec<_>>(),
+            )) {
+                Ok(shas) => {
+                    let revision_sha_mapping = unique_revisions
+                        .into_iter()
+                        .zip(shas)
+                        .collect::<HashMap<i32, Option<String>>>();
+                    debug!(
+                        logger,
+                        "Fetched Git SHAs for {} unique revisions",
+                        revision_sha_mapping.len()
+                    );
+
+                    let tasks = requested_files
+                        .into_iter()
+                        .filter_map(
+                            |(file_kind, FileWithoutSha {
+                                path,
+                                size,
+                                revision,
+                                last_author,
+                                last_changed,
+                            })| match revision_sha_mapping.get(&revision) {
+                                Some(Some(sha)) => Some(Task {
+                                    kind: file_kind,
+                                    file: File {
+                                    path,
+                                    size,
+                                    revision,
+                                    last_author,
+                                    last_changed,
+                                    sha: sha.to_string(),
+                                },
+                                    created: Utc::now().naive_utc(),
+                                }),
+                                _ => {
+                                    error!(logger, "Missing SHA corresponding to file"; "path" => path, "revision" => revision);
+                                    None
+                                },
+                            },
+                        )
+                        .collect::<Vec<_>>();
+                    Ok(tasks)
+                },
+                Err(err) => Err(format!("Unable to fetch Git SHAs: {}", err)),
+            }?;
+
+            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
             let future = join_all(
                 new_tasks
                     .iter()
