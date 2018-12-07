@@ -1,8 +1,5 @@
 use std::{
-    collections::{
-        hash_map::Entry::{self, Occupied, Vacant},
-        HashMap,
-    },
+    collections::{hash_map::Entry, HashMap},
     process::{Command, Output},
     str,
     sync::{Arc, Mutex},
@@ -17,7 +14,11 @@ use quick_xml::{
     Reader,
 };
 use slog::Logger;
-use tokio::prelude::{future::join_all, Future};
+use tokio::{
+    executor::current_thread::CurrentThread,
+    prelude::{future::join_all, Future},
+};
+use tokio_process::CommandExt;
 
 use db::Pool;
 use models::{FileKind, NewEntry};
@@ -31,6 +32,14 @@ pub struct File {
     pub size: i32,
     pub revision: i32,
     pub sha: String,
+    pub last_author: String,
+    pub last_changed: NaiveDateTime,
+}
+
+pub struct FileWithoutSha {
+    pub path: String,
+    pub size: i32,
+    pub revision: i32,
     pub last_author: String,
     pub last_changed: NaiveDateTime,
 }
@@ -49,44 +58,32 @@ pub struct Worker {
     logger: Logger,
 }
 
-fn get_git_sha(
-    logger: &Logger,
-    revision_mapping: &mut HashMap<i32, Option<String>>,
-    revision: i32,
-    svn_path: &str,
-) -> Option<String> {
-    match revision_mapping.entry(revision) {
-        Vacant(entry) => {
-            let get_sha = Command::new("svn")
-                .arg("propget")
-                .arg("git-commit")
-                .arg("--revprop")
-                .arg("-r")
-                .arg(revision.to_string())
-                .arg(svn_path)
-                .output();
+fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Item = Option<String>, Error = ()> {
+    let sha_future = Command::new("svn")
+        .arg("propget")
+        .arg("git-commit")
+        .arg("--revprop")
+        .arg("-r")
+        .arg(revision.to_string())
+        .arg(svn_path)
+        .output_async();
 
-            match get_sha {
-                Ok(Output { status, ref stdout, .. }) if status.success() => {
-                    let sha = Some(String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string());
-                    entry.insert(sha.clone());
-                    sha
-                },
-                Ok(Output { stderr, .. }) => {
-                    let err = String::from_utf8_lossy(&stderr);
-                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
-                    entry.insert(None);
-                    None
-                },
-                Err(err) => {
-                    error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
-                    entry.insert(None);
-                    None
-                },
+    sha_future
+        .then(move |sha| match sha {
+            Ok(Output { status, ref stdout, .. }) if status.success() => {
+                let sha = String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string();
+                Ok(Some(sha))
+            },
+            Ok(Output { stderr, .. }) => {
+                let err = String::from_utf8_lossy(&stderr);
+                error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
+                Ok(None)
+            },
+            Err(err) => {
+                 error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
+                Ok(None)
             }
-        },
-        Occupied(entry) => entry.get().to_owned(),
-    }
+        })
 }
 
 fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>, String> {
@@ -115,18 +112,16 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
         .arg(&svn_path)
         .output();
 
-    match output {
+    let files_without_shas = match output {
         Ok(Output { status, ref stdout, .. }) if status.success() => {
             let xml = String::from_utf8_lossy(stdout);
             let mut reader = Reader::from_str(&xml);
             let mut buf = Vec::new();
 
             let mut files = Vec::new();
-            let mut revision_mapping: HashMap<i32, Option<String>> = HashMap::new();
             let mut in_file_entry = false;
             let (mut in_name, mut in_author, mut in_date, mut in_size) = (false, false, false, false);
-            let (mut name, mut author, mut date, mut size, mut revision, mut sha) =
-                (None, None, None, None, None, None);
+            let (mut name, mut author, mut date, mut size, mut revision) = (None, None, None, None, None);
 
             loop {
                 match reader.read_event(&mut buf) {
@@ -146,16 +141,13 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         for attr in e.attributes() {
                             if let Ok(Attribute { value, key }) = attr {
                                 if decode_utf8(&key, &reader)? == "revision" {
-                                    let raw_revision = decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
+                                    revision = Some(decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
                                         format!(
                                             "Revision number parsing error at position {}: {:?}",
                                             reader.buffer_position(),
                                             err,
                                         )
-                                    })?;
-
-                                    sha = get_git_sha(&logger, &mut revision_mapping, raw_revision, &svn_path);
-                                    revision = Some(raw_revision);
+                                    })?);
 
                                     break;
                                 }
@@ -198,27 +190,26 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                     Ok(Event::End(ref e)) if e.name() == b"size" => in_size = false,
                     Ok(Event::End(ref e)) if e.name() == b"entry" => {
                         if in_file_entry {
-                            match (name.clone(), size, revision, sha.clone(), author.clone(), date) {
-                                (Some(name), Some(size), Some(revision), Some(sha), Some(author), Some(date)) => {
+                            match (name.clone(), size, revision, author.clone(), date) {
+                                (Some(name), Some(size), Some(revision), Some(author), Some(date)) => {
                                     trace!(
                                         logger,
                                         "Parsed file";
-                                        "name" => name.clone(), "size" => size, "revision" => revision, "sha" => sha.clone(), "author" => author.clone(), "date" => date.to_string(),
+                                        "name" => name.clone(), "size" => size, "revision" => revision, "author" => author.clone(), "date" => date.to_string(),
                                     );
-                                    files.push(File {
+                                    files.push(FileWithoutSha {
                                         path: name,
                                         size,
                                         revision,
-                                        sha,
                                         last_author: author,
                                         last_changed: date,
                                     });
                                 },
                                 _ => {
-                                    warn!(
+                                    error!(
                                         logger,
                                         "Failed to fetch all file information";
-                                        "name" => name, "size" => size, "revision" => revision, "sha" => sha, "author" => author, "date" => date.map(|x| x.to_string()),
+                                        "name" => name, "size" => size, "revision" => revision, "author" => author, "date" => date.map(|x| x.to_string()),
                                     );
                                 },
                             }
@@ -228,7 +219,6 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
                         name = None;
                         size = None;
                         revision = None;
-                        sha = None;
                         author = None;
                         date = None;
                     },
@@ -246,6 +236,40 @@ fn list_files(logger: &Logger, name: &str, recursive: bool) -> Result<Vec<File>,
             Err(format!("Package not found: {}", error))
         },
         Err(_) => Err(format!("Package search failed: {}", name)),
+    }?;
+
+    let mut unique_revisions = files_without_shas
+        .iter()
+        .map(|FileWithoutSha { revision, .. }| revision.clone())
+        .collect::<Vec<_>>();
+    unique_revisions.sort();
+    unique_revisions.dedup();
+    match CurrentThread::new().block_on(join_all(
+        unique_revisions
+            .iter()
+            .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
+            .collect::<Vec<_>>(),
+    )) {
+        Ok(shas) => {
+            let revision_sha_mapping = unique_revisions
+                .into_iter()
+                .zip(shas)
+                .collect::<HashMap<i32, Option<String>>>();
+            let files = files_without_shas
+                .into_iter()
+                .filter_map(|FileWithoutSha {path, size, revision, last_author, last_changed}| match revision_sha_mapping.get(&revision) {
+                    Some(Some(sha)) => Some(File {path, size, revision, last_author, last_changed, sha: sha.to_string()}),
+                    _ => {
+                        error!(logger,
+                        "Missing SHA corresponding to file";
+                        "name" => name, "size" => size, "revision" => revision, "author" => last_author, "date" => last_changed.to_string());
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(files)
+        },
+        Err(err) => Err(format!("Unable to fetch Git SHAs: {}", err)),
     }
 }
 
