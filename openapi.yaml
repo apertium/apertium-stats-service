@@ -208,6 +208,7 @@ components:
         last_changed:
           type: string
           format: date-time
+          example: '2018-12-08T01:14:30.363888593'
         path:
           type: string
           example: apertium-pl-dsb.pl-dsb.dix
@@ -238,9 +239,11 @@ components:
               created:
                 type: string
                 format: date-time
+                example: '2018-12-08T01:14:30.363872405'
               requested:
                 type: string
                 format: date-time
+                example: '2018-12-08T01:14:21.246595913'
     StatsInProgress:
       type: array
       items:
@@ -253,3 +256,4 @@ components:
           created:
             type: string
             format: date-time
+            example: '2018-12-08T01:14:30.363872405'
