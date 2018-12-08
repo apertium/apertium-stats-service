@@ -51,8 +51,9 @@ use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
 use rocket::{
-    http::{Method, Status},
+    http::{Accept, ContentType, MediaType, Method, Status},
     request::Form,
+    response::Content,
     State,
 };
 use rocket_contrib::json::JsonValue;
@@ -153,8 +154,13 @@ fn parse_kind_param(name: &str, kind: &str) -> Result<FileKind, (Option<JsonValu
 }
 
 #[get("/")]
-fn index() -> &'static str {
-    "USAGE
+fn index<'a>(accept: Option<&'a Accept>) -> Content<&'a str> {
+    if accept.map_or(false, |a| a.preferred().media_type() == &MediaType::HTML) {
+        Content(ContentType::HTML, include_str!("../index.html"))
+    } else {
+        Content(
+            ContentType::Plain,
+            "USAGE
 
 GET /apertium-<code1>(-<code2>)
 retrieves statistics for the specified package
@@ -168,7 +174,17 @@ calculates statistics for the specified package
 POST /apertium-<code1>(-<code2>)/<kind>
 calculates <kind> statistics for the specified package
 
-See openapi.yaml for full specification."
+See /openapi.yaml for full specification.",
+        )
+    }
+}
+
+#[get("/openapi.yaml")]
+fn openapi_yaml() -> Content<&'static str> {
+    Content(
+        ContentType::new("application", "x-yaml"),
+        include_str!("../openapi.yaml"),
+    )
 }
 
 #[get("/<name>?<params..>")]
@@ -306,6 +322,7 @@ fn rocket(database_url: String) -> rocket::Rocket {
             "/",
             routes![
                 index,
+                openapi_yaml,
                 get_stats,
                 get_specific_stats,
                 calculate_stats,

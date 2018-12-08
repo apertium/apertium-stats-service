@@ -10,7 +10,7 @@ use std::{
 };
 
 use rocket::{
-    http::Status,
+    http::{Status, Accept},
     local::{Client, LocalResponse},
 };
 use tempfile::NamedTempFile;
@@ -37,11 +37,31 @@ pub const TEST_LT_PAIR_FILES_COUNT: usize = 7;
 pub const TEST_LT_PAIR_STATS_COUNT: usize = 13;
 
 #[test]
-fn usage() {
+fn usage_plaintext() {
     run_test!(|client| {
         let mut response = client.get("/").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = response.body_string().expect("non-empty body");
         assert!(body.starts_with("USAGE"), body);
+    });
+}
+
+#[test]
+fn usage_html() {
+    run_test!(|client| {
+        let mut response = client.get("/").header(Accept::HTML).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = response.body_string().expect("non-empty body");
+        assert!(body.contains("SwaggerUIBundle"), body);
+    });
+}
+
+#[test]
+fn openapi_yaml() {
+    run_test!(|client| {
+        let mut response = client.get("/openapi.yaml").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = response.body_string().expect("non-empty body");
+        assert!(body.starts_with("openapi"), body);
     });
 }
