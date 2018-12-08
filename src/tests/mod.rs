@@ -10,7 +10,7 @@ use std::{
 };
 
 use rocket::{
-    http::{Status, Accept},
+    http::{Accept, Status},
     local::{Client, LocalResponse},
 };
 use tempfile::NamedTempFile;
