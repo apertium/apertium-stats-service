@@ -55,7 +55,7 @@ type Tasks = Vec<Task>;
 pub struct Worker {
     pool: Pool,
     current_tasks: Arc<Mutex<HashMap<String, Tasks>>>,
-    logger: Logger,
+    pub logger: Logger,
 }
 
 fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Item = Option<String>, Error = ()> {

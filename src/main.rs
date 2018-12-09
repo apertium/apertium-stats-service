@@ -115,7 +115,10 @@ fn launch_tasks_and_reply(
                         "stats": stats,
                         "in_progress": vec![] as Vec<Task>,
                     })),
-                    Err(_err) => JsonResult::Err(None, Status::InternalServerError),
+                    Err(_err) => {
+                        error!(worker.logger, "Failed to run tasks to completion"; "name" => name);
+                        JsonResult::Err(None, Status::InternalServerError)
+                    },
                 }
             }
         },
@@ -151,6 +154,11 @@ fn parse_kind_param(name: &str, kind: &str) -> Result<FileKind, (Option<JsonValu
             Status::BadRequest,
         )
     })
+}
+
+fn handle_db_error(logger: &Logger, err: diesel::result::Error) -> (Option<JsonValue>, Status) {
+    error!(logger, "Encountered database level error: {:?}", err);
+    (None, Status::InternalServerError)
 }
 
 #[get("/")]
@@ -196,7 +204,7 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
         .order(entries_db::created)
         .limit(1)
         .load::<models::Entry>(&*conn)
-        .map_err(|_| (None, Status::InternalServerError))?;
+        .map_err(|err| handle_db_error(&worker.logger, err))?;
 
     if entries.is_empty() {
         if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
@@ -217,7 +225,7 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
             .filter(sql("1 GROUP BY stat_kind, path")) // HACK: Diesel has no real group_by :(
             .order(entries_db::created)
             .load::<models::Entry>(&*conn)
-            .map_err(|_| (None, Status::InternalServerError))?;
+            .map_err(|err| handle_db_error(&worker.logger, err))?;
         JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
@@ -243,7 +251,7 @@ fn get_specific_stats(
         .order(entries_db::created)
         .limit(1)
         .load::<models::Entry>(&*conn)
-        .map_err(|_| (None, Status::InternalServerError))?;
+        .map_err(|err| handle_db_error(&worker.logger, err))?;
 
     if entries.is_empty() {
         if let Some(in_progress_tasks) = worker.get_tasks_in_progress(&name) {
@@ -267,7 +275,7 @@ fn get_specific_stats(
             .filter(sql("1 GROUP BY stat_kind, path")) // HACK: Diesel has no real group_by :(
             .order(entries_db::created)
             .load::<models::Entry>(&*conn)
-            .map_err(|_| (None, Status::InternalServerError))?;
+            .map_err(|err| handle_db_error(&worker.logger, err))?;
         JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
