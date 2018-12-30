@@ -15,7 +15,7 @@ use rocket::{
 };
 use tempfile::NamedTempFile;
 
-use rocket;
+use super::*;
 
 pub const INITIAL_WAIT_DURATION: u64 = 1;
 pub const MAX_WAIT_DURATION: u64 = 32;

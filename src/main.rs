@@ -2,7 +2,6 @@
 #![deny(clippy::all)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::suspicious_else_formatting)]
-#![allow(clippy::print_literal)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
 mod db;
@@ -17,6 +16,7 @@ mod worker;
 mod tests;
 
 extern crate chrono;
+extern crate failure;
 #[macro_use]
 extern crate diesel;
 #[macro_use]
@@ -27,6 +27,7 @@ extern crate lazy_static;
 extern crate regex;
 #[macro_use]
 extern crate rocket;
+extern crate serde;
 extern crate tempfile;
 #[macro_use]
 extern crate rocket_contrib;
@@ -38,13 +39,14 @@ extern crate tokio;
 extern crate tokio_process;
 #[macro_use]
 extern crate slog;
+extern crate graphql_client;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate quick_xml;
 extern crate slog_async;
 extern crate slog_term;
 
-use std::env;
+use std::{cmp::max, env, sync::Arc, thread, time::Duration};
 
 use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
@@ -69,6 +71,10 @@ use worker::{Task, Worker};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
+pub const GITHUB_API_REPOS_ENDPOINT: &str = "https://api.github.com/orgs/apertium/repos";
+pub const GITHUB_GRAPHQL_API_ENDPOINT: &str = "https://api.github.com/graphql";
+pub const PACKAGE_UPDATE_MIN_INTERVAL_SECONDS: u64 = 5;
+pub const PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS: u64 = 60;
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
@@ -76,6 +82,7 @@ lazy_static! {
     pub static ref HTTPS_CLIENT: Client<HttpsConnector<HttpConnector>> = Client::builder()
         .executor(RUNTIME.executor())
         .build(HttpsConnector::new(4).unwrap());
+    pub static ref HTTPS_CLIENT_2: reqwest::Client = reqwest::Client::new();
 }
 
 fn launch_tasks_and_reply(
@@ -302,6 +309,16 @@ fn calculate_specific_stats(
     launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
 }
 
+#[get("/packages")]
+#[allow(clippy::clone_on_copy)]
+fn get_packages(worker: State<Worker>) -> JsonResult {
+    JsonResult::Ok(json!({
+        "packages": worker.packages.read().unwrap().clone(),
+        "last_updated": worker.packages_updated.read().unwrap().clone(),
+        "next_update": worker.packages_next_update.read().unwrap().clone(),
+    }))
+}
+
 fn create_logger() -> Logger {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
@@ -309,11 +326,7 @@ fn create_logger() -> Logger {
     Logger::root(async_drain, o!())
 }
 
-fn rocket(database_url: String) -> rocket::Rocket {
-    let pool = db::init_pool(&database_url);
-    let logger = create_logger();
-    let worker = Worker::new(pool.clone(), logger.clone());
-
+fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger) -> rocket::Rocket {
     let cors_options = rocket_cors::Cors {
         allowed_origins: AllowedOrigins::all(),
         allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
@@ -335,14 +348,38 @@ fn rocket(database_url: String) -> rocket::Rocket {
                 get_specific_stats,
                 calculate_stats,
                 calculate_specific_stats,
+                get_packages,
             ],
         )
         .attach(cors_options)
+}
+
+pub fn service(database_url: String) -> rocket::Rocket {
+    let pool = db::init_pool(&database_url);
+    let logger = create_logger();
+    let worker = Arc::new(Worker::new(pool.clone(), logger.clone()));
+
+    let package_update_worker = worker.clone();
+    thread::spawn(move || loop {
+        let next_update = {
+            match package_update_worker.update_packages() {
+                Ok(interval) => max(interval, Duration::from_secs(PACKAGE_UPDATE_MIN_INTERVAL_SECONDS)),
+                Err(err) => {
+                    error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
+                    Duration::from_secs(PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS)
+                },
+            }
+        };
+        package_update_worker.record_next_packages_update(next_update);
+        thread::sleep(next_update);
+    });
+
+    rocket(pool, worker, logger)
 }
 
 #[cfg_attr(tarpaulin, skip)]
 fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    rocket(database_url).launch();
+    service(database_url).launch();;
 }

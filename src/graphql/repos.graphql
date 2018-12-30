@@ -1,0 +1,53 @@
+query Repos($after: String) {
+  organization(login: "apertium") {
+    repositories(first: 100, after: $after) {
+      edges {
+        node {
+          name
+          description
+          repositoryTopics(first: 50) {
+            nodes {
+              topic {
+                name
+              }
+            }
+          }
+          ref(qualifiedName: "master") {
+            target {
+              __typename
+              ... on Commit {
+                history(first: 1) {
+                  edges {
+                    node {
+                      oid
+                      author {
+                        name
+                        email
+                      }
+                      committer {
+                        name
+                        email
+                      }
+                      authoredDate
+                      committedDate
+                      messageHeadline
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+  rateLimit {
+    cost
+    remaining
+    resetAt
+  }
+}
