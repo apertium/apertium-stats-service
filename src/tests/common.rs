@@ -13,7 +13,7 @@ macro_rules! run_test {
             .env("DATABASE_URL", db_path)
             .status()
             .expect("successful database setup");
-        let $client = Client::new(service(db_path.into())).expect("valid rocket instance");
+        let $client = Client::new(service(db_path.into(), None)).expect("valid rocket instance");
         $block
     }};
 }

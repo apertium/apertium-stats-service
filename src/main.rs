@@ -86,7 +86,7 @@ lazy_static! {
 }
 
 fn launch_tasks_and_reply(
-    worker: &State<Worker>,
+    worker: &State<Arc<Worker>>,
     name: String,
     kind: Option<&FileKind>,
     options: Params,
@@ -203,7 +203,7 @@ fn openapi_yaml() -> Content<&'static str> {
 }
 
 #[get("/<name>?<params..>")]
-fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Worker>) -> JsonResult {
+fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Arc<Worker>>) -> JsonResult {
     let name = parse_name_param(&name)?;
 
     let entries: Vec<models::Entry> = entries_db::table
@@ -247,7 +247,7 @@ fn get_specific_stats(
     kind: String,
     params: Form<Option<Params>>,
     conn: DbConn,
-    worker: State<Worker>,
+    worker: State<Arc<Worker>>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
@@ -292,7 +292,7 @@ fn get_specific_stats(
 }
 
 #[post("/<name>?<params..>")]
-fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Worker>) -> JsonResult {
+fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Arc<Worker>>) -> JsonResult {
     let name = parse_name_param(&name)?;
     launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
 }
@@ -302,7 +302,7 @@ fn calculate_specific_stats(
     name: String,
     kind: String,
     params: Form<Option<Params>>,
-    worker: State<Worker>,
+    worker: State<Arc<Worker>>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
@@ -311,7 +311,7 @@ fn calculate_specific_stats(
 
 #[get("/packages")]
 #[allow(clippy::clone_on_copy)]
-fn get_packages(worker: State<Worker>) -> JsonResult {
+fn get_packages(worker: State<Arc<Worker>>) -> JsonResult {
     JsonResult::Ok(json!({
         "packages": worker.packages.read().unwrap().clone(),
         "last_updated": worker.packages_updated.read().unwrap().clone(),
@@ -326,7 +326,7 @@ fn create_logger() -> Logger {
     Logger::root(async_drain, o!())
 }
 
-fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger) -> rocket::Rocket {
+fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_routes_enabled: bool) -> rocket::Rocket {
     let cors_options = rocket_cors::Cors {
         allowed_origins: AllowedOrigins::all(),
         allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
@@ -335,29 +335,35 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger) -> rocket::Rocket
         ..Default::default()
     };
 
+    let mut routes = routes![
+        index,
+        openapi_yaml,
+        get_stats,
+        get_specific_stats,
+        calculate_stats,
+        calculate_specific_stats,
+        get_packages,
+    ];
+    if !package_listing_routes_enabled {
+        routes = routes
+            .into_iter()
+            .filter(|route| !route.uri.path().starts_with("/packages"))
+            .collect();
+    }
+
     rocket::ignite()
         .manage(pool)
         .manage(worker)
         .manage(logger)
-        .mount(
-            "/",
-            routes![
-                index,
-                openapi_yaml,
-                get_stats,
-                get_specific_stats,
-                calculate_stats,
-                calculate_specific_stats,
-                get_packages,
-            ],
-        )
+        .mount("/", routes)
         .attach(cors_options)
 }
 
-pub fn service(database_url: String) -> rocket::Rocket {
+pub fn service(database_url: String, github_auth_token: Option<String>) -> rocket::Rocket {
     let pool = db::init_pool(&database_url);
     let logger = create_logger();
-    let worker = Arc::new(Worker::new(pool.clone(), logger.clone()));
+    let package_listing_routes_enabled = github_auth_token.is_some();
+    let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token));
 
     let package_update_worker = worker.clone();
     thread::spawn(move || loop {
@@ -374,12 +380,18 @@ pub fn service(database_url: String) -> rocket::Rocket {
         thread::sleep(next_update);
     });
 
-    rocket(pool, worker, logger)
+    rocket(pool, worker, logger, package_listing_routes_enabled)
 }
 
 #[cfg_attr(tarpaulin, skip)]
 fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    service(database_url).launch();;
+
+    let github_auth_token = env::var("GITHUB_AUTH_TOKEN").map(Some).unwrap_or_default();
+    if github_auth_token.is_none() {
+        eprintln!("GITHUB_AUTH_TOKEN environment variable not set -- /packages route will be unavailable");
+    }
+
+    service(database_url, github_auth_token).launch();;
 }

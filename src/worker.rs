@@ -285,20 +285,28 @@ fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Ve
 
 fn get_packages(
     logger: &Logger,
+    github_auth_token: &str,
     after: Option<&String>,
 ) -> Result<(Vec<Package>, Option<String>, packages_query::ReposRateLimit), failure::Error> {
     lazy_static! {
-        static ref TOPICS: HashSet<&'static str> = ["languages", "incubator", "nursery", "staging", "trunk"]
-            .iter()
-            .cloned()
-            .collect();
+        static ref TOPICS: HashSet<&'static str> = [
+            "apertium-languages",
+            "apertium-incubator",
+            "apertium-nursery",
+            "apertium-staging",
+            "apertium-trunk"
+        ]
+        .iter()
+        .cloned()
+        .collect();
     }
 
     info!(logger, "Fetching repos"; "after" => after);
 
     let query = PackagesQuery::build_query(packages_query::Variables { after: after.cloned() });
-    let response: Response<packages_query::ResponseData> = HTTPS_CLIENT_2.post(GITHUB_GRAPHQL_API_ENDPOINT)
-        .bearer_auth("c55addfc044a08082ab1a0e5418c366afbad1ea5") // TODO: move this out
+    let response: Response<packages_query::ResponseData> = HTTPS_CLIENT_2
+        .post(GITHUB_GRAPHQL_API_ENDPOINT)
+        .bearer_auth(github_auth_token)
         .json(&query)
         .send()?
         .json()?;
@@ -373,7 +381,7 @@ fn get_packages(
                 }),
             })
         })
-        .filter(|Package {topics, ..}| !TOPICS.is_disjoint(&topics.iter().map(|x| x.as_str()).collect()))
+        // .filter(|Package {topics, ..}| !TOPICS.is_disjoint(&topics.iter().map(|x| x.as_str()).collect()))
         .collect::<Vec<_>>();
 
     let page_info = repositories.page_info;
@@ -387,6 +395,8 @@ fn get_packages(
         .rate_limit
         .ok_or_else(|| PackageUpdateError("Missing rate limits".to_string()))?;
 
+    debug!(logger, "Fetched {} packages", packages.len());
+
     Ok((packages, next_after, limits))
 }
 
@@ -397,10 +407,11 @@ pub struct Worker {
     pub packages_next_update: RwLock<NaiveDateTime>,
     pool: Pool,
     current_tasks: Arc<RwLock<HashMap<String, Tasks>>>,
+    github_auth_token: Option<String>,
 }
 
 impl Worker {
-    pub fn new(pool: Pool, logger: Logger) -> Worker {
+    pub fn new(pool: Pool, logger: Logger, github_auth_token: Option<String>) -> Worker {
         Worker {
             pool,
             packages: RwLock::new(vec![]),
@@ -408,6 +419,7 @@ impl Worker {
             packages_next_update: RwLock::new(Utc::now().naive_utc()),
             current_tasks: Arc::new(RwLock::new(HashMap::new())),
             logger,
+            github_auth_token,
         }
     }
 
@@ -537,13 +549,19 @@ impl Worker {
     }
 
     pub fn update_packages(&self) -> Result<Duration, failure::Error> {
+        let github_auth_token = self
+            .github_auth_token
+            .as_ref()
+            .expect("Update packages requires a GitHub auth token")
+            .as_str();
         let mut packages = Vec::new();
 
-        let (mut new_packages, mut after, mut rate_limits) = get_packages(&self.logger, None)?;
+        let (mut new_packages, mut after, mut rate_limits) = get_packages(&self.logger, github_auth_token, None)?;
         let mut total_cost = rate_limits.cost;
         packages.append(&mut new_packages);
         while after.is_some() {
-            let (mut new_packages, new_after, new_rate_limits) = get_packages(&self.logger, after.as_ref())?;
+            let (mut new_packages, new_after, new_rate_limits) =
+                get_packages(&self.logger, github_auth_token, after.as_ref())?;
             after = new_after;
             rate_limits = new_rate_limits;
             total_cost += rate_limits.cost;
@@ -557,13 +575,16 @@ impl Worker {
         info!(
             self.logger,
             "Updated package list to contain {} packages",
-            self.packages.read().unwrap().len()
+            packages_lock.len()
         );
 
-        let next_update = (Utc::now() - rate_limits.reset_at) / (total_cost as i32);
+        let next_update = (rate_limits.reset_at - Utc::now()) / ((rate_limits.remaining / total_cost) as i32);
         debug!(
             self.logger,
-            "Package list update cost {}, next theoretical update scheduled in {}", total_cost, next_update
+            "Package list update cost {}, have {} cost remaining, next theoretical update scheduled in {}",
+            total_cost,
+            rate_limits.remaining,
+            next_update
         );
         Ok(chrono::Duration::to_std(&next_update)?)
     }
