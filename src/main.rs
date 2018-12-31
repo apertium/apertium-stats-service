@@ -2,7 +2,6 @@
 #![deny(clippy::all)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::suspicious_else_formatting)]
-#![allow(clippy::print_literal)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
 mod db;
@@ -17,6 +16,7 @@ mod worker;
 mod tests;
 
 extern crate chrono;
+extern crate failure;
 #[macro_use]
 extern crate diesel;
 #[macro_use]
@@ -27,6 +27,7 @@ extern crate lazy_static;
 extern crate regex;
 #[macro_use]
 extern crate rocket;
+extern crate serde;
 extern crate tempfile;
 #[macro_use]
 extern crate rocket_contrib;
@@ -38,13 +39,14 @@ extern crate tokio;
 extern crate tokio_process;
 #[macro_use]
 extern crate slog;
+extern crate graphql_client;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate quick_xml;
 extern crate slog_async;
 extern crate slog_term;
 
-use std::env;
+use std::{cmp::max, env, sync::Arc, thread, time::Duration};
 
 use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
@@ -65,26 +67,31 @@ use db::DbConn;
 use models::FileKind;
 use schema::entries as entries_db;
 use util::{normalize_name, JsonResult, Params};
-use worker::{Task, Worker};
+use worker::{Package, Task, Worker};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
+pub const GITHUB_API_REPOS_ENDPOINT: &str = "https://api.github.com/orgs/apertium/repos";
+pub const GITHUB_GRAPHQL_API_ENDPOINT: &str = "https://api.github.com/graphql";
+pub const PACKAGE_UPDATE_MIN_INTERVAL: Duration = Duration::from_secs(10);
+pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
     pub static ref RUNTIME: Runtime = Runtime::new().unwrap();
-    pub static ref HTTPS_CLIENT: Client<HttpsConnector<HttpConnector>> = Client::builder()
+    pub static ref HTTPS_CLIENT: reqwest::Client = reqwest::Client::new();
+    pub static ref HYPER_HTTPS_CLIENT: Client<HttpsConnector<HttpConnector>> = Client::builder()
         .executor(RUNTIME.executor())
         .build(HttpsConnector::new(4).unwrap());
 }
 
 fn launch_tasks_and_reply(
-    worker: &State<Worker>,
+    worker: &State<Arc<Worker>>,
     name: String,
     kind: Option<&FileKind>,
     options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&HTTPS_CLIENT, &name, kind, options.is_recursive()) {
+    match worker.launch_tasks(&name, kind, options.is_recursive()) {
         Ok((ref new_tasks, ref in_progress_tasks, ref _future))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
@@ -161,6 +168,34 @@ fn handle_db_error(logger: &Logger, err: diesel::result::Error) -> (Option<JsonV
     (None, Status::InternalServerError)
 }
 
+#[allow(clippy::clone_on_copy)]
+fn get_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult {
+    let lower_query = query.map(|x| x.to_ascii_lowercase());
+    let packages = worker.packages.read().unwrap().clone();
+    JsonResult::Ok(json!({
+        "packages": match lower_query {
+            Some(q) => packages.into_iter().filter(|Package {name, ..}| name.to_ascii_lowercase().contains(&q)).collect(),
+            None => packages
+        },
+        "as_of": worker.packages_updated.read().unwrap().clone(),
+        "next_update": worker.packages_next_update.read().unwrap().clone(),
+    }))
+}
+
+fn update_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult {
+    if let Err(err) = worker.update_packages() {
+        error!(worker.logger, "Failed to update packages: {:?}", err);
+        return JsonResult::Err(
+            Some(json!({
+                "error": err.to_string(),
+            })),
+            Status::InternalServerError,
+        );
+    }
+
+    get_packages(worker, query)
+}
+
 #[get("/")]
 fn index<'a>(accept: Option<&'a Accept>) -> Content<&'a str> {
     if accept.map_or(false, |a| a.preferred().media_type() == &MediaType::HTML) {
@@ -182,6 +217,12 @@ calculates statistics for the specified package
 POST /apertium-<code1>(-<code2>)/<kind>
 calculates <kind> statistics for the specified package
 
+GET /packages/<?query>
+lists packages with names including the optional query
+
+POST /packages/<?query>
+updates package cache and lists specified packages
+
 See /openapi.yaml for full specification.",
         )
     }
@@ -195,8 +236,8 @@ fn openapi_yaml() -> Content<&'static str> {
     )
 }
 
-#[get("/<name>?<params..>")]
-fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Worker>) -> JsonResult {
+#[get("/<name>?<params..>", rank = 1)]
+fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Arc<Worker>>) -> JsonResult {
     let name = parse_name_param(&name)?;
 
     let entries: Vec<models::Entry> = entries_db::table
@@ -234,13 +275,13 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
     }
 }
 
-#[get("/<name>/<kind>?<params..>")]
+#[get("/<name>/<kind>?<params..>", rank = 1)]
 fn get_specific_stats(
     name: String,
     kind: String,
     params: Form<Option<Params>>,
     conn: DbConn,
-    worker: State<Worker>,
+    worker: State<Arc<Worker>>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
@@ -284,22 +325,42 @@ fn get_specific_stats(
     }
 }
 
-#[post("/<name>?<params..>")]
-fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Worker>) -> JsonResult {
+#[post("/<name>?<params..>", rank = 1)]
+fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Arc<Worker>>) -> JsonResult {
     let name = parse_name_param(&name)?;
     launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
 }
 
-#[post("/<name>/<kind>?<params..>")]
+#[post("/<name>/<kind>?<params..>", rank = 1)]
 fn calculate_specific_stats(
     name: String,
     kind: String,
     params: Form<Option<Params>>,
-    worker: State<Worker>,
+    worker: State<Arc<Worker>>,
 ) -> JsonResult {
     let name = parse_name_param(&name)?;
     let file_kind = parse_kind_param(&name, &kind)?;
     launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
+}
+
+#[get("/packages")]
+fn get_all_packages(worker: State<Arc<Worker>>) -> JsonResult {
+    get_packages(worker, None)
+}
+
+#[get("/packages/<query>")]
+fn get_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResult {
+    get_packages(worker, Some(query))
+}
+
+#[post("/packages")]
+fn update_all_packages(worker: State<Arc<Worker>>) -> JsonResult {
+    update_packages(worker, None)
+}
+
+#[post("/packages/<query>")]
+fn update_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResult {
+    update_packages(worker, Some(query))
 }
 
 fn create_logger() -> Logger {
@@ -309,11 +370,7 @@ fn create_logger() -> Logger {
     Logger::root(async_drain, o!())
 }
 
-fn rocket(database_url: String) -> rocket::Rocket {
-    let pool = db::init_pool(&database_url);
-    let logger = create_logger();
-    let worker = Worker::new(pool.clone(), logger.clone());
-
+fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_routes_enabled: bool) -> rocket::Rocket {
     let cors_options = rocket_cors::Cors {
         allowed_origins: AllowedOrigins::all(),
         allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
@@ -322,27 +379,68 @@ fn rocket(database_url: String) -> rocket::Rocket {
         ..Default::default()
     };
 
+    let mut routes = routes![
+        index,
+        openapi_yaml,
+        get_stats,
+        get_specific_stats,
+        calculate_stats,
+        calculate_specific_stats,
+        get_all_packages,
+        get_specific_packages,
+        update_all_packages,
+        update_specific_packages,
+    ];
+    if !package_listing_routes_enabled {
+        routes = routes
+            .into_iter()
+            .filter(|route| !route.uri.path().starts_with("/packages"))
+            .collect();
+    }
+
     rocket::ignite()
         .manage(pool)
         .manage(worker)
         .manage(logger)
-        .mount(
-            "/",
-            routes![
-                index,
-                openapi_yaml,
-                get_stats,
-                get_specific_stats,
-                calculate_stats,
-                calculate_specific_stats,
-            ],
-        )
+        .mount("/", routes)
         .attach(cors_options)
+}
+
+pub fn service(database_url: String, github_auth_token: Option<String>) -> rocket::Rocket {
+    let pool = db::init_pool(&database_url);
+    let logger = create_logger();
+    let package_listing_routes_enabled = github_auth_token.is_some();
+    let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token));
+
+    if package_listing_routes_enabled {
+        let package_update_worker = worker.clone();
+        thread::spawn(move || loop {
+            let next_update = {
+                match package_update_worker.update_packages() {
+                    Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
+                    Err(err) => {
+                        error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
+                        PACKAGE_UPDATE_FALLBACK_INTERVAL
+                    },
+                }
+            };
+            package_update_worker.record_next_packages_update(next_update);
+            thread::sleep(next_update);
+        });
+    }
+
+    rocket(pool, worker, logger, package_listing_routes_enabled)
 }
 
 #[cfg_attr(tarpaulin, skip)]
 fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    rocket(database_url).launch();
+
+    let github_auth_token = env::var("GITHUB_AUTH_TOKEN").map(Some).unwrap_or_default();
+    if github_auth_token.is_none() {
+        eprintln!("GITHUB_AUTH_TOKEN environment variable not set -- /packages route will be unavailable");
+    }
+
+    service(database_url, github_auth_token).launch();;
 }

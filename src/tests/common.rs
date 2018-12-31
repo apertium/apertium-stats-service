@@ -3,9 +3,9 @@ use serde_json;
 
 use super::*;
 
-macro_rules! run_test {
-    (| $client:ident | $block:expr) => {{
-        let db_file = NamedTempFile::new().expect("valid database file");
+pub fn setup_database() -> Box<tempfile::NamedTempFile> {
+    let db_file = NamedTempFile::new().expect("valid database file");
+    {
         let db_path = db_file.path().to_str().expect("valid database path");
         Command::new("diesel")
             .stdout(Stdio::null())
@@ -13,7 +13,28 @@ macro_rules! run_test {
             .env("DATABASE_URL", db_path)
             .status()
             .expect("successful database setup");
-        let $client = Client::new(rocket(db_path.into())).expect("valid rocket instance");
+    }
+
+    Box::new(db_file)
+}
+
+macro_rules! run_test {
+    (| $client:ident | $block:expr) => {{
+        let db_file = $crate::tests::common::setup_database();
+        let db_path = db_file.path().to_str().expect("valid database path");
+        let $client = Client::new(service(db_path.into(), None)).expect("valid rocket instance");
+        $block
+    }};
+}
+
+macro_rules! run_test_with_github_auth {
+    (| $client:ident | $block:expr) => {{
+        dotenv().ok();
+        let db_file = $crate::tests::common::setup_database();
+        let db_path = db_file.path().to_str().expect("valid database path");
+        let github_auth_token =
+            Some(env::var("GITHUB_AUTH_TOKEN").expect("testing requires GITHUB_AUTH_TOKEN environment variable"));
+        let $client = Client::new(service(db_path.into(), github_auth_token)).expect("valid rocket instance");
         $block
     }};
 }
@@ -26,8 +47,8 @@ pub fn wait_for_ok<F>(client: &Client, endpoint: &str, handle_ok_response: F)
 where
     F: Fn(LocalResponse) -> bool,
 {
-    let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
-    while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
+    let mut sleep_duration = INITIAL_WAIT_DURATION;
+    while sleep_duration < MAX_WAIT_DURATION {
         let response = client.get(endpoint).dispatch();
         match response.status() {
             Status::TooManyRequests => {
@@ -38,12 +59,12 @@ where
                     return;
                 }
             },
-            status => assert!(false, format!("recieved unexpected status: {:?}", status)),
+            status => panic!(format!("recieved unexpected status: {:?}", status)),
         }
 
         sleep(sleep_duration);
         sleep_duration *= 2;
     }
 
-    assert!(false, "failed while waiting for completion");
+    panic!("failed while waiting for completion");
 }

@@ -1,14 +1,16 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
+    error::Error,
+    fmt,
     process::{Command, Output},
     str,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
-use hyper::{client::connect::HttpConnector, Client};
-use hyper_tls::HttpsConnector;
+use graphql_client::{GraphQLQuery, Response};
 use quick_xml::{
     events::{attributes::Attribute, BytesText, Event},
     Reader,
@@ -24,9 +26,22 @@ use db::Pool;
 use models::{FileKind, NewEntry};
 use schema::entries;
 use stats::{get_file_kind, get_file_stats};
+use GITHUB_GRAPHQL_API_ENDPOINT;
+use HTTPS_CLIENT;
 use ORGANIZATION_ROOT;
 
-#[derive(Serialize, Clone, Debug)]
+type DateTime = chrono::DateTime<Utc>;
+type GitObjectID = String;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "src/graphql/schema.json",
+    query_path = "src/graphql/repos.graphql",
+    response_derives = "Clone, Debug"
+)]
+pub struct PackagesQuery;
+
+#[derive(Clone, Debug, Serialize)]
 pub struct File {
     pub path: String,
     pub size: i32,
@@ -44,7 +59,7 @@ pub struct FileWithoutSha {
     pub last_changed: NaiveDateTime,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Task {
     pub created: NaiveDateTime,
     pub file: File,
@@ -52,10 +67,39 @@ pub struct Task {
 }
 type Tasks = Vec<Task>;
 
-pub struct Worker {
-    pool: Pool,
-    current_tasks: Arc<Mutex<HashMap<String, Tasks>>>,
-    pub logger: Logger,
+#[derive(Clone, Serialize)]
+pub struct Actor {
+    pub name: String,
+    pub email: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Commit {
+    pub sha: String,
+    pub author: Actor,
+    pub committer: Actor,
+    pub authored: NaiveDateTime,
+    pub committed: NaiveDateTime,
+    pub message: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct Package {
+    pub name: String,
+    pub description: Option<String>,
+    pub topics: Vec<String>,
+    pub last_commit: Option<Commit>,
+}
+
+#[derive(Debug)]
+pub struct PackageUpdateError(String);
+
+impl Error for PackageUpdateError {}
+
+impl fmt::Display for PackageUpdateError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Item = Option<String>, Error = ()> {
@@ -237,23 +281,153 @@ fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Ve
     }
 }
 
+fn get_packages(
+    logger: &Logger,
+    github_auth_token: &str,
+    after: Option<&String>,
+) -> Result<(Vec<Package>, Option<String>, packages_query::ReposRateLimit), failure::Error> {
+    lazy_static! {
+        static ref TOPICS: HashSet<&'static str> = [
+            "apertium-languages",
+            "apertium-incubator",
+            "apertium-nursery",
+            "apertium-staging",
+            "apertium-trunk"
+        ]
+        .iter()
+        .cloned()
+        .collect();
+    }
+
+    info!(logger, "Fetching repos"; "after" => after);
+
+    let query = PackagesQuery::build_query(packages_query::Variables { after: after.cloned() });
+    let response: Response<packages_query::ResponseData> = HTTPS_CLIENT
+        .post(GITHUB_GRAPHQL_API_ENDPOINT)
+        .bearer_auth(github_auth_token)
+        .json(&query)
+        .send()?
+        .json()?;
+
+    if let Some(errors) = response.errors {
+        for err in &errors {
+            warn!(logger, "Encountered error while fetching repos: {:?}", err; "after" => after);
+        }
+    }
+
+    let response_data: packages_query::ResponseData = response
+        .data
+        .ok_or_else(|| PackageUpdateError("Missing response data".to_string()))?;
+
+    let repositories = response_data
+        .organization
+        .ok_or_else(|| PackageUpdateError("Missing organization".to_string()))?
+        .repositories;
+
+    let packages = repositories
+        .edges
+        .ok_or_else(|| PackageUpdateError("Missing repositories".to_string()))?
+        .into_iter()
+        .filter_map(|repo_node| {
+            if repo_node.is_none() {
+                warn!(logger, "Missing repository node");
+            }
+
+            repo_node.and_then(|x| x.node).map(|repo| Package {
+                name: repo.name,
+                description: repo.description,
+                topics: repo.repository_topics.nodes.map_or(vec![], |topics| {
+                    topics
+                        .into_iter()
+                        .filter_map(|topic| topic.map(|x| x.topic).map(|x| x.name.to_string()))
+                        .collect()
+                }),
+                last_commit: repo.ref_.and_then(|x| match x.target.on {
+                    packages_query::ReposOrganizationRepositoriesEdgesNodeRefTargetOn::Commit(commit) => commit
+                        .history
+                        .edges
+                        .and_then(|x| x.first().and_then(|y| y.clone().and_then(|z| z.node)))
+                        .and_then(|ref commit| match (&commit.author, &commit.committer) {
+                            (Some(ref author), Some(ref committer)) =>
+                                match (&author.name, &author.email, &committer.name, &committer.email) {
+                                    (Some(ref author_name), Some(ref author_email), Some(ref committer_name), Some(ref committer_email)) =>
+                                        Some(Commit {
+                                            sha: commit.oid.clone(),
+                                            message: commit.clone().message_headline,
+                                            authored: commit.authored_date.naive_utc(),
+                                            committed: commit.committed_date.naive_utc(),
+                                            author: Actor {
+                                                name: author_name.to_string(),
+                                                email: author_email.to_string(),
+                                            },
+                                            committer: Actor {
+                                                name: committer_name.to_string(),
+                                                email: committer_email.to_string(),
+                                            },
+                                        }),
+                                    _ => {
+                                        warn!(logger, "Commit author or committer missing information: author = {:?}, committer = {:?}", author, committer);
+                                        None
+                                    }
+                                }
+                            _ => {
+                                warn!(logger, "Commit missing author or committer: {:?}", commit);
+                                None
+                            },
+                        }),
+                    _ => None,
+                }),
+            })
+        })
+        .filter(|Package {topics, ..}| !TOPICS.is_disjoint(&topics.iter().map(|x| x.as_str()).collect()))
+        .collect::<Vec<_>>();
+
+    let page_info = repositories.page_info;
+    let next_after = if page_info.has_next_page {
+        page_info.end_cursor
+    } else {
+        None
+    };
+
+    let limits = response_data
+        .rate_limit
+        .ok_or_else(|| PackageUpdateError("Missing rate limits".to_string()))?;
+
+    debug!(logger, "Fetched {} packages", packages.len());
+
+    Ok((packages, next_after, limits))
+}
+
+pub struct Worker {
+    pub logger: Logger,
+    pub packages: RwLock<Vec<Package>>,
+    pub packages_updated: RwLock<Option<NaiveDateTime>>,
+    pub packages_next_update: RwLock<NaiveDateTime>,
+    pool: Pool,
+    current_tasks: Arc<RwLock<HashMap<String, Tasks>>>,
+    github_auth_token: Option<String>,
+}
+
 impl Worker {
-    pub fn new(pool: Pool, logger: Logger) -> Worker {
+    pub fn new(pool: Pool, logger: Logger, github_auth_token: Option<String>) -> Worker {
         Worker {
             pool,
-            current_tasks: Arc::new(Mutex::new(HashMap::new())),
+            packages: RwLock::new(vec![]),
+            packages_updated: RwLock::new(None),
+            packages_next_update: RwLock::new(Utc::now().naive_utc()),
+            current_tasks: Arc::new(RwLock::new(HashMap::new())),
             logger,
+            github_auth_token,
         }
     }
 
     pub fn get_tasks_in_progress(&self, name: &str) -> Option<Tasks> {
-        let current_tasks = self.current_tasks.lock().unwrap();
+        let current_tasks = self.current_tasks.read().unwrap();
         current_tasks.get(name).cloned()
     }
 
     pub fn launch_tasks(
         &self,
-        client: &Client<HttpsConnector<HttpConnector>>,
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
@@ -264,7 +438,7 @@ impl Worker {
         ));
 
         list_files(&logger, name, recursive).and_then(|files_without_shas| {
-            let mut current_tasks = self.current_tasks.lock().unwrap();
+            let mut current_tasks = self.current_tasks.write().unwrap();
             let current_package_tasks = current_tasks.entry(name.to_string());
 
             let requested_files = files_without_shas
@@ -300,12 +474,13 @@ impl Worker {
             unique_revisions.dedup();
             debug!(logger, "Found {} unique revisions", unique_revisions.len());
 
-            let new_tasks = match CurrentThread::new().block_on(join_all(
+            let sha_futures = join_all(
                 unique_revisions
                     .iter()
                     .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
                     .collect::<Vec<_>>(),
-            )) {
+            );
+            let new_tasks = match CurrentThread::new().block_on(sha_futures) {
                 Ok(shas) => {
                     let revision_sha_mapping = unique_revisions
                         .into_iter()
@@ -355,7 +530,7 @@ impl Worker {
             let future = join_all(
                 new_tasks
                     .iter()
-                    .map(|task| self.launch_task(&logger, client, name, task))
+                    .map(|task| self.launch_task(&logger, name, task))
                     .collect::<Vec<_>>(),
             )
             .map(|entries| {
@@ -370,10 +545,50 @@ impl Worker {
         })
     }
 
+    pub fn update_packages(&self) -> Result<Duration, failure::Error> {
+        let github_auth_token = self
+            .github_auth_token
+            .as_ref()
+            .expect("package list update requires a GitHub auth token")
+            .as_str();
+        let mut packages = Vec::new();
+
+        let (mut new_packages, mut after, mut rate_limits) = get_packages(&self.logger, github_auth_token, None)?;
+        let mut total_cost = rate_limits.cost;
+        packages.append(&mut new_packages);
+        while after.is_some() {
+            let (mut new_packages, new_after, new_rate_limits) =
+                get_packages(&self.logger, github_auth_token, after.as_ref())?;
+            after = new_after;
+            rate_limits = new_rate_limits;
+            total_cost += rate_limits.cost;
+            packages.append(&mut new_packages);
+        }
+
+        let mut packages_lock = self.packages.write().unwrap();
+        packages_lock.clear();
+        packages_lock.append(&mut packages);
+        *self.packages_updated.write().unwrap() = Some(Utc::now().naive_utc());
+
+        let next_update = (rate_limits.reset_at - Utc::now()) / ((rate_limits.remaining / total_cost) as i32);
+        info!(
+            self.logger,
+            "Completed package list update";
+            "length" => packages_lock.len(), "total_cost" => total_cost,
+            "cost_remaining" => rate_limits.remaining, "next_update_min" => next_update.to_string()
+        );
+        Ok(chrono::Duration::to_std(&next_update)?)
+    }
+
+    pub fn record_next_packages_update(&self, next_update: Duration) {
+        debug!(self.logger, "Next package update in {:?}", next_update);
+        *self.packages_next_update.write().unwrap() = Utc::now().naive_utc()
+            + chrono::Duration::from_std(next_update).unwrap_or_else(|_| chrono::Duration::zero());
+    }
+
     fn launch_task(
         &self,
         logger: &Logger,
-        client: &Client<HttpsConnector<HttpConnector>>,
         package_name: &str,
         task: &Task,
     ) -> impl Future<Item = (Option<Vec<NewEntry>>, Option<String>), Error = ()> {
@@ -386,15 +601,8 @@ impl Worker {
             "kind" => task.kind.to_string(),
         ));
 
-        get_file_stats(
-            &logger,
-            &client,
-            task.file.path.clone(),
-            &package_name,
-            task.kind.clone(),
-        )
-        .then(move |maybe_stats| {
-            let mut current_tasks = current_tasks_guard.lock().unwrap();
+        get_file_stats(&logger, task.file.path.clone(), &package_name, task.kind.clone()).then(move |maybe_stats| {
+            let mut current_tasks = current_tasks_guard.write().unwrap();
             Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
 
             match maybe_stats {

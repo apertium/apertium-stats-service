@@ -81,6 +81,45 @@ paths:
           $ref: '#components/responses/BadRequestError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /packages:
+    get:
+      summary: Returns listing of packages
+      responses:
+        '200':
+          $ref: '#components/responses/Packages'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Updates package cache and returns updated listing
+      responses:
+        '200':
+          $ref: '#components/responses/Packages'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /packages/{query}:
+    parameters:
+      Query:
+        name: query
+        in: path
+        required: false
+        description: search string for case-insensitive package name filtering
+        example: eng
+        schema:
+          type: string
+    get:
+      summary: Returns listing of packages filtered by query
+      responses:
+        '200':
+          $ref: '#components/responses/Packages'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Updates cache of packages and returns updated listing filtered by query
+      responses:
+        '200':
+          $ref: '#components/responses/Packages'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   responses:
     Stats:
@@ -120,6 +159,24 @@ components:
                 type: string
               in_progress:
                 $ref: '#/components/schemas/StatsInProgress'
+    Packages:
+      description: Package metadata
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              as_of:
+                type: string
+                format: date-time
+                example: '2018-12-08T01:14:30.363888593'
+                nullable: true
+              next_update:
+                $ref: '#/components/schemas/DateTime'
+              packages:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Package'
     BadRequestError:
       description: Bad request error
       content:
@@ -166,6 +223,23 @@ components:
         type: boolean
         default: true
   schemas:
+    Sha:
+      type: string
+      example: 9f09e5e37aadb005fbd420e79803e506a8202f73
+    DateTime:
+      type: string
+      format: date-time
+      example: '2018-12-08T01:14:30.363888593'
+    Actor:
+      type: object
+      properties:
+        name:
+          type: string
+          example: sushain97
+        email:
+          type: string
+          format: email
+          example: sushain@skc.name
     Error:
       type: object
       properties:
@@ -206,9 +280,7 @@ components:
           type: integer
           example: 13
         last_changed:
-          type: string
-          format: date-time
-          example: '2018-12-08T01:14:30.363888593'
+          $ref: '#components/schemas/DateTime'
         path:
           type: string
           example: apertium-pl-dsb.pl-dsb.dix
@@ -216,8 +288,7 @@ components:
           type: integer
           example: 13
         sha:
-          type: string
-          example: 9f09e5e37aadb005fbd420e79803e506a8202f73
+          $ref: '#components/schemas/Sha'
     Stats:
       type: array
       items:
@@ -237,13 +308,9 @@ components:
               value:
                 example: 366
               created:
-                type: string
-                format: date-time
-                example: '2018-12-08T01:14:30.363872405'
+                $ref: '#components/schemas/DateTime'
               requested:
-                type: string
-                format: date-time
-                example: '2018-12-08T01:14:21.246595913'
+                $ref: '#components/schemas/DateTime'
     StatsInProgress:
       type: array
       items:
@@ -254,6 +321,36 @@ components:
           kind:
             $ref: '#components/schemas/FileKind'
           created:
+            $ref: '#components/schemas/DateTime'
+    Commit:
+      type: object
+      properties:
+        message:
+          type: string
+          example: more words, some weird spellrelax
+        sha:
+          $ref: '#components/schemas/Sha'
+        authored:
+          $ref: '#components/schemas/DateTime'
+        committed:
+          $ref: '#components/schemas/DateTime'
+        author:
+          $ref: '#components/schemas/Actor'
+        committer:
+          $ref: '#components/schemas/Actor'
+    Package:
+      type: object
+      properties:
+        description:
+          type: string
+          example: Apertium linguistic data for English
+        name:
+          type: string
+          example: apertium-eng
+        topics:
+          type: array
+          items:
             type: string
-            format: date-time
-            example: '2018-12-08T01:14:30.363872405'
+            example: apertium-languages
+        last_commit:
+          $ref: '#components/schemas/Commit'

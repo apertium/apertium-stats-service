@@ -294,3 +294,42 @@ fn sync_package_stats() {
         assert_eq!(stats.len(), 2);
     });
 }
+
+#[test]
+fn package_listing() {
+    run_test_with_github_auth!(|client| {
+        let mut sleep_duration = INITIAL_WAIT_DURATION;
+        while sleep_duration < MAX_WAIT_DURATION {
+            let response = client.get("/packages").dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            let body = parse_response(response);
+            let all_packages_len = body["packages"].as_array().expect("valid packages").len();
+
+            if all_packages_len > 400 {
+                assert!(
+                    body["as_of"].as_str().expect("valid as_of")
+                        < body["next_update"].as_str().expect("valid next_update"),
+                    body
+                );
+
+                let response = client.get(format!("/packages/{}", TEST_LT_MODULE)).dispatch();
+                assert_eq!(response.status(), Status::Ok);
+                let body = parse_response(response);
+                let specific_packages_len = body["packages"].as_array().expect("valid packages").len();
+                assert!(
+                    specific_packages_len < all_packages_len && specific_packages_len > 10,
+                    body
+                );
+
+                return;
+            } else {
+                assert!(body["as_of"].is_null(), body["as_of"].to_string());
+            }
+
+            sleep(sleep_duration);
+            sleep_duration *= 2;
+        }
+
+        panic!("failed while waiting for completion");
+    });
+}

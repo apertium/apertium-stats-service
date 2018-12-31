@@ -4,11 +4,10 @@ mod xml;
 use std::{
     io::{self, BufRead, BufReader, Write},
     process::{Command, Output},
-    str,
+    str::Utf8Error,
 };
 
-use hyper::{client::connect::HttpConnector, Client, Error as HyperError};
-use hyper_tls::HttpsConnector;
+use hyper::Error as HyperError;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use rocket_contrib::json::JsonValue;
 use slog::Logger;
@@ -16,13 +15,14 @@ use tempfile::NamedTempFile;
 use tokio::prelude::{Future, Stream};
 
 use models::{FileKind, StatKind};
+use HYPER_HTTPS_CLIENT;
 use LANG_CODE_RE;
 use ORGANIZATION_RAW_ROOT;
 
 #[derive(Debug)]
 pub enum StatsError {
     Hyper(HyperError),
-    Utf8(str::Utf8Error),
+    Utf8(Utf8Error),
     Io(io::Error),
     Xml(String),
     CgComp(String),
@@ -31,7 +31,6 @@ pub enum StatsError {
 
 pub fn get_file_stats(
     logger: &Logger,
-    client: &Client<HttpsConnector<HttpConnector>>,
     file_path: String,
     package_name: &str,
     file_kind: FileKind,
@@ -41,60 +40,63 @@ pub fn get_file_stats(
         .unwrap();
     let logger = logger.clone();
 
-    client.get(url).map_err(StatsError::Hyper).and_then(|response| {
-        response
-            .into_body()
-            .concat2()
-            .map_err(StatsError::Hyper)
-            .and_then(move |body| match file_kind {
-                FileKind::Monodix | FileKind::MetaMonodix => self::xml::get_monodix_stats(body, &file_path),
-                FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => {
-                    self::xml::get_bidix_stats(body, &file_path)
-                },
-                FileKind::Transfer => self::xml::get_transfer_stats(body, &file_path),
-                FileKind::Rlx => {
-                    let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
-                    rlx_file.write_all(&*body).map_err(StatsError::Io)?;
-                    let output = Command::new("cg-comp")
-                        .arg(
-                            rlx_file
-                                .path()
-                                .to_str()
-                                .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
-                        )
-                        .arg("/dev/null")
-                        .output();
+    HYPER_HTTPS_CLIENT
+        .get(url)
+        .map_err(StatsError::Hyper)
+        .and_then(|response| {
+            response
+                .into_body()
+                .concat2()
+                .map_err(StatsError::Hyper)
+                .and_then(move |body| match file_kind {
+                    FileKind::Monodix | FileKind::MetaMonodix => self::xml::get_monodix_stats(body, &file_path),
+                    FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => {
+                        self::xml::get_bidix_stats(body, &file_path)
+                    },
+                    FileKind::Transfer => self::xml::get_transfer_stats(body, &file_path),
+                    FileKind::Rlx => {
+                        let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
+                        rlx_file.write_all(&*body).map_err(StatsError::Io)?;
+                        let output = Command::new("cg-comp")
+                            .arg(
+                                rlx_file
+                                    .path()
+                                    .to_str()
+                                    .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
+                            )
+                            .arg("/dev/null")
+                            .output();
 
-                    match output {
-                        Ok(Output { status, ref stderr, .. }) if status.success() => {
-                            let cg_conv_output = String::from_utf8_lossy(stderr);
-                            lazy_static! {
-                                static ref RE: Regex = Regex::new(r"(\w+): (\d+)").unwrap();
-                            }
-                            for capture in RE.captures_iter(&cg_conv_output) {
-                                if &capture[1] == "Rules" {
-                                    return Ok(vec![(StatKind::Rules, json!(capture[2]))]);
+                        match output {
+                            Ok(Output { status, ref stderr, .. }) if status.success() => {
+                                let cg_conv_output = String::from_utf8_lossy(stderr);
+                                lazy_static! {
+                                    static ref RE: Regex = Regex::new(r"(\w+): (\d+)").unwrap();
                                 }
-                            }
+                                for capture in RE.captures_iter(&cg_conv_output) {
+                                    if &capture[1] == "Rules" {
+                                        return Ok(vec![(StatKind::Rules, json!(capture[2]))]);
+                                    }
+                                }
 
-                            Err(StatsError::CgComp(format!("No stats in output: {}", &cg_conv_output)))
-                        },
-                        Ok(Output { ref stderr, .. }) => {
-                            Err(StatsError::CgComp(String::from_utf8_lossy(stderr).to_string()))
-                        },
-                        Err(err) => Err(StatsError::Io(err)),
-                    }
-                },
-                FileKind::Twol => {
-                    let rule_count = BufReader::new(&*body)
-                        .lines()
-                        .filter(|line_result| line_result.as_ref().ok().map_or(false, |line| line.starts_with('"')))
-                        .count();
-                    Ok(vec![(StatKind::Rules, json!(rule_count))])
-                },
-                FileKind::Lexc => self::lexc::get_stats(&logger, body),
-            })
-    })
+                                Err(StatsError::CgComp(format!("No stats in output: {}", &cg_conv_output)))
+                            },
+                            Ok(Output { ref stderr, .. }) => {
+                                Err(StatsError::CgComp(String::from_utf8_lossy(stderr).to_string()))
+                            },
+                            Err(err) => Err(StatsError::Io(err)),
+                        }
+                    },
+                    FileKind::Twol => {
+                        let rule_count = BufReader::new(&*body)
+                            .lines()
+                            .filter(|line_result| line_result.as_ref().ok().map_or(false, |line| line.starts_with('"')))
+                            .count();
+                        Ok(vec![(StatKind::Rules, json!(rule_count))])
+                    },
+                    FileKind::Lexc => self::lexc::get_stats(&logger, body),
+                })
+        })
 }
 
 pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
