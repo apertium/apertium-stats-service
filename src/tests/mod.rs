@@ -17,8 +17,8 @@ use tempfile::NamedTempFile;
 
 use super::*;
 
-pub const INITIAL_WAIT_DURATION: u64 = 1;
-pub const MAX_WAIT_DURATION: u64 = 32;
+pub const INITIAL_WAIT_DURATION: Duration = Duration::from_secs(1);
+pub const MAX_WAIT_DURATION: Duration = Duration::from_secs(32);
 
 pub const TEST_LT_MODULE: &str = "cat";
 pub const TEST_LT_MODULE_FILES_COUNT: usize = 3;

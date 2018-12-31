@@ -298,8 +298,8 @@ fn sync_package_stats() {
 #[test]
 fn package_listing() {
     run_test_with_github_auth!(|client| {
-        let mut sleep_duration = Duration::from_secs(INITIAL_WAIT_DURATION);
-        while sleep_duration < Duration::from_secs(MAX_WAIT_DURATION) {
+        let mut sleep_duration = INITIAL_WAIT_DURATION;
+        while sleep_duration < MAX_WAIT_DURATION {
             let response = client.get("/packages").dispatch();
             assert_eq!(response.status(), Status::Ok);
             let body = parse_response(response);

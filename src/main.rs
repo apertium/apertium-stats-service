@@ -73,8 +73,8 @@ pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const GITHUB_API_REPOS_ENDPOINT: &str = "https://api.github.com/orgs/apertium/repos";
 pub const GITHUB_GRAPHQL_API_ENDPOINT: &str = "https://api.github.com/graphql";
-pub const PACKAGE_UPDATE_MIN_INTERVAL_SECONDS: u64 = 10;
-pub const PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS: u64 = 120;
+pub const PACKAGE_UPDATE_MIN_INTERVAL: Duration = Duration::from_secs(10);
+pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
@@ -417,10 +417,10 @@ pub fn service(database_url: String, github_auth_token: Option<String>) -> rocke
         thread::spawn(move || loop {
             let next_update = {
                 match package_update_worker.update_packages() {
-                    Ok(interval) => max(interval, Duration::from_secs(PACKAGE_UPDATE_MIN_INTERVAL_SECONDS)),
+                    Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                     Err(err) => {
                         error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
-                        Duration::from_secs(PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS)
+                        PACKAGE_UPDATE_FALLBACK_INTERVAL
                     },
                 }
             };
