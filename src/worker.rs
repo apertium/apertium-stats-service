@@ -29,7 +29,7 @@ use models::{FileKind, NewEntry};
 use schema::entries;
 use stats::{get_file_kind, get_file_stats};
 use GITHUB_GRAPHQL_API_ENDPOINT;
-use HTTPS_CLIENT_2;
+use HTTPS_CLIENT;
 use ORGANIZATION_ROOT;
 
 type DateTime = chrono::DateTime<Utc>;
@@ -304,7 +304,7 @@ fn get_packages(
     info!(logger, "Fetching repos"; "after" => after);
 
     let query = PackagesQuery::build_query(packages_query::Variables { after: after.cloned() });
-    let response: Response<packages_query::ResponseData> = HTTPS_CLIENT_2
+    let response: Response<packages_query::ResponseData> = HTTPS_CLIENT
         .post(GITHUB_GRAPHQL_API_ENDPOINT)
         .bearer_auth(github_auth_token)
         .json(&query)

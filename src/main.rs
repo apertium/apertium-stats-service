@@ -79,10 +79,10 @@ pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
     pub static ref RUNTIME: Runtime = Runtime::new().unwrap();
-    pub static ref HTTPS_CLIENT: Client<HttpsConnector<HttpConnector>> = Client::builder()
+    pub static ref HTTPS_CLIENT: reqwest::Client = reqwest::Client::new();
+    pub static ref HYPER_HTTPS_CLIENT: Client<HttpsConnector<HttpConnector>> = Client::builder()
         .executor(RUNTIME.executor())
         .build(HttpsConnector::new(4).unwrap());
-    pub static ref HTTPS_CLIENT_2: reqwest::Client = reqwest::Client::new();
 }
 
 fn launch_tasks_and_reply(
@@ -91,7 +91,7 @@ fn launch_tasks_and_reply(
     kind: Option<&FileKind>,
     options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&HTTPS_CLIENT, &name, kind, options.is_recursive()) {
+    match worker.launch_tasks(&HYPER_HTTPS_CLIENT, &name, kind, options.is_recursive()) {
         Ok((ref new_tasks, ref in_progress_tasks, ref _future))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
