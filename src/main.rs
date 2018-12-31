@@ -381,20 +381,22 @@ pub fn service(database_url: String, github_auth_token: Option<String>) -> rocke
     let package_listing_routes_enabled = github_auth_token.is_some();
     let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token));
 
-    let package_update_worker = worker.clone();
-    thread::spawn(move || loop {
-        let next_update = {
-            match package_update_worker.update_packages() {
-                Ok(interval) => max(interval, Duration::from_secs(PACKAGE_UPDATE_MIN_INTERVAL_SECONDS)),
-                Err(err) => {
-                    error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
-                    Duration::from_secs(PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS)
-                },
-            }
-        };
-        package_update_worker.record_next_packages_update(next_update);
-        thread::sleep(next_update);
-    });
+    if package_listing_routes_enabled {
+        let package_update_worker = worker.clone();
+        thread::spawn(move || loop {
+            let next_update = {
+                match package_update_worker.update_packages() {
+                    Ok(interval) => max(interval, Duration::from_secs(PACKAGE_UPDATE_MIN_INTERVAL_SECONDS)),
+                    Err(err) => {
+                        error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
+                        Duration::from_secs(PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS)
+                    },
+                }
+            };
+            package_update_worker.record_next_packages_update(next_update);
+            thread::sleep(next_update);
+        });
+    }
 
     rocket(pool, worker, logger, package_listing_routes_enabled)
 }
