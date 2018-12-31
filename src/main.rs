@@ -174,7 +174,7 @@ fn get_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult
     let packages = worker.packages.read().unwrap().clone();
     JsonResult::Ok(json!({
         "packages": match lower_query {
-            Some(q) => packages.into_iter().filter(|Package {name, ..}| name.to_ascii_lowercase().contains(&q)).collect::<Vec<_>>(),
+            Some(q) => packages.into_iter().filter(|Package {name, ..}| name.to_ascii_lowercase().contains(&q)).collect(),
             None => packages
         },
         "last_updated": worker.packages_updated.read().unwrap().clone(),
@@ -216,6 +216,12 @@ calculates statistics for the specified package
 
 POST /apertium-<code1>(-<code2>)/<kind>
 calculates <kind> statistics for the specified package
+
+GET /packages/<?query>
+lists packages with names including the optional query
+
+POST /packages/<?query>
+updates package cache and lists specified packages
 
 See /openapi.yaml for full specification.",
         )
