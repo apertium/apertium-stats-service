@@ -67,7 +67,7 @@ use db::DbConn;
 use models::FileKind;
 use schema::entries as entries_db;
 use util::{normalize_name, JsonResult, Params};
-use worker::{Task, Worker};
+use worker::{Package, Task, Worker};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
@@ -168,6 +168,34 @@ fn handle_db_error(logger: &Logger, err: diesel::result::Error) -> (Option<JsonV
     (None, Status::InternalServerError)
 }
 
+#[allow(clippy::clone_on_copy)]
+fn get_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult {
+    let lower_query = query.map(|x| x.to_ascii_lowercase());
+    let packages = worker.packages.read().unwrap().clone();
+    JsonResult::Ok(json!({
+        "packages": match lower_query {
+            Some(q) => packages.into_iter().filter(|Package {name, ..}| name.to_ascii_lowercase().contains(&q)).collect::<Vec<_>>(),
+            None => packages
+        },
+        "last_updated": worker.packages_updated.read().unwrap().clone(),
+        "next_update": worker.packages_next_update.read().unwrap().clone(),
+    }))
+}
+
+fn update_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult {
+    if let Err(err) = worker.update_packages() {
+        error!(worker.logger, "Failed to update packages: {:?}", err);
+        return JsonResult::Err(
+            Some(json!({
+                "error": err.to_string(),
+            })),
+            Status::InternalServerError,
+        );
+    }
+
+    get_packages(worker, query)
+}
+
 #[get("/")]
 fn index<'a>(accept: Option<&'a Accept>) -> Content<&'a str> {
     if accept.map_or(false, |a| a.preferred().media_type() == &MediaType::HTML) {
@@ -202,7 +230,7 @@ fn openapi_yaml() -> Content<&'static str> {
     )
 }
 
-#[get("/<name>?<params..>")]
+#[get("/<name>?<params..>", rank = 1)]
 fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Arc<Worker>>) -> JsonResult {
     let name = parse_name_param(&name)?;
 
@@ -241,7 +269,7 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
     }
 }
 
-#[get("/<name>/<kind>?<params..>")]
+#[get("/<name>/<kind>?<params..>", rank = 1)]
 fn get_specific_stats(
     name: String,
     kind: String,
@@ -291,13 +319,13 @@ fn get_specific_stats(
     }
 }
 
-#[post("/<name>?<params..>")]
+#[post("/<name>?<params..>", rank = 1)]
 fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Arc<Worker>>) -> JsonResult {
     let name = parse_name_param(&name)?;
     launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
 }
 
-#[post("/<name>/<kind>?<params..>")]
+#[post("/<name>/<kind>?<params..>", rank = 1)]
 fn calculate_specific_stats(
     name: String,
     kind: String,
@@ -310,28 +338,23 @@ fn calculate_specific_stats(
 }
 
 #[get("/packages")]
-#[allow(clippy::clone_on_copy)]
-fn get_packages(worker: State<Arc<Worker>>) -> JsonResult {
-    JsonResult::Ok(json!({
-        "packages": worker.packages.read().unwrap().clone(),
-        "last_updated": worker.packages_updated.read().unwrap().clone(),
-        "next_update": worker.packages_next_update.read().unwrap().clone(),
-    }))
+fn get_all_packages(worker: State<Arc<Worker>>) -> JsonResult {
+    get_packages(worker, None)
+}
+
+#[get("/packages/<query>")]
+fn get_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResult {
+    get_packages(worker, Some(query))
 }
 
 #[post("/packages")]
-fn update_packages(worker: State<Arc<Worker>>) -> JsonResult {
-    if let Err(err) = worker.update_packages() {
-        error!(worker.logger, "Failed to update packages: {:?}", err);
-        return JsonResult::Err(
-            Some(json!({
-                "error": err.to_string(),
-            })),
-            Status::InternalServerError,
-        );
-    }
+fn update_all_packages(worker: State<Arc<Worker>>) -> JsonResult {
+    update_packages(worker, None)
+}
 
-    get_packages(worker)
+#[post("/packages/<query>")]
+fn update_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResult {
+    update_packages(worker, Some(query))
 }
 
 fn create_logger() -> Logger {
@@ -357,8 +380,10 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_r
         get_specific_stats,
         calculate_stats,
         calculate_specific_stats,
-        get_packages,
-        update_packages,
+        get_all_packages,
+        get_specific_packages,
+        update_all_packages,
+        update_specific_packages,
     ];
     if !package_listing_routes_enabled {
         routes = routes
