@@ -177,7 +177,7 @@ fn get_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult
             Some(q) => packages.into_iter().filter(|Package {name, ..}| name.to_ascii_lowercase().contains(&q)).collect(),
             None => packages
         },
-        "last_updated": worker.packages_updated.read().unwrap().clone(),
+        "as_of": worker.packages_updated.read().unwrap().clone(),
         "next_update": worker.packages_next_update.read().unwrap().clone(),
     }))
 }
