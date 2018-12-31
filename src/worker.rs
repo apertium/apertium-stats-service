@@ -549,7 +549,7 @@ impl Worker {
         let github_auth_token = self
             .github_auth_token
             .as_ref()
-            .expect("Update packages requires a GitHub auth token")
+            .expect("package list update requires a GitHub auth token")
             .as_str();
         let mut packages = Vec::new();
 
@@ -569,19 +569,13 @@ impl Worker {
         packages_lock.clear();
         packages_lock.append(&mut packages);
         *self.packages_updated.write().unwrap() = Some(Utc::now().naive_utc());
-        info!(
-            self.logger,
-            "Updated package list to contain {} packages",
-            packages_lock.len()
-        );
 
         let next_update = (rate_limits.reset_at - Utc::now()) / ((rate_limits.remaining / total_cost) as i32);
-        debug!(
+        info!(
             self.logger,
-            "Package list update cost {}, have {} cost remaining, next theoretical update scheduled in {}",
-            total_cost,
-            rate_limits.remaining,
-            next_update
+            "Completed package list update";
+            "length" => packages_lock.len(), "total_cost" => total_cost,
+            "cost_remaining" => rate_limits.remaining, "next_update_min" => next_update.to_string()
         );
         Ok(chrono::Duration::to_std(&next_update)?)
     }
