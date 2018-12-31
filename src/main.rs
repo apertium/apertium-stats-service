@@ -73,8 +73,8 @@ pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
 pub const GITHUB_API_REPOS_ENDPOINT: &str = "https://api.github.com/orgs/apertium/repos";
 pub const GITHUB_GRAPHQL_API_ENDPOINT: &str = "https://api.github.com/graphql";
-pub const PACKAGE_UPDATE_MIN_INTERVAL_SECONDS: u64 = 5;
-pub const PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS: u64 = 60;
+pub const PACKAGE_UPDATE_MIN_INTERVAL_SECONDS: u64 = 10;
+pub const PACKAGE_UPDATE_FALLBACK_INTERVAL_SECONDS: u64 = 120;
 pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
@@ -319,6 +319,21 @@ fn get_packages(worker: State<Arc<Worker>>) -> JsonResult {
     }))
 }
 
+#[post("/packages")]
+fn update_packages(worker: State<Arc<Worker>>) -> JsonResult {
+    if let Err(err) = worker.update_packages() {
+        error!(worker.logger, "Failed to update packages: {:?}", err);
+        return JsonResult::Err(
+            Some(json!({
+                "error": err.to_string(),
+            })),
+            Status::InternalServerError,
+        );
+    }
+
+    get_packages(worker)
+}
+
 fn create_logger() -> Logger {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
@@ -343,6 +358,7 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_r
         calculate_stats,
         calculate_specific_stats,
         get_packages,
+        update_packages,
     ];
     if !package_listing_routes_enabled {
         routes = routes

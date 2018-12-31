@@ -381,7 +381,7 @@ fn get_packages(
                 }),
             })
         })
-        // .filter(|Package {topics, ..}| !TOPICS.is_disjoint(&topics.iter().map(|x| x.as_str()).collect()))
+        .filter(|Package {topics, ..}| !TOPICS.is_disjoint(&topics.iter().map(|x| x.as_str()).collect()))
         .collect::<Vec<_>>();
 
     let page_info = repositories.page_info;
