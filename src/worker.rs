@@ -299,7 +299,7 @@ fn get_packages(
         .collect();
     }
 
-    info!(logger, "Fetching repos"; "after" => after);
+    debug!(logger, "Fetching repos"; "after" => after);
 
     let query = PackagesQuery::build_query(packages_query::Variables { after: after.cloned() });
     let response: Response<packages_query::ResponseData> = HTTPS_CLIENT

@@ -31,6 +31,7 @@ slog-async = "2.3.0"
 graphql_client = "0.6.0"
 reqwest = "0.9.5"
 failure = "0.1.4"
+slog-envlogger = "2.1.0"
 
 [dev-dependencies]
 diesel_cli = { version = "1.2.0", default-features = false, features = ["sqlite"] }

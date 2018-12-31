@@ -17,6 +17,7 @@ mod tests;
 
 extern crate chrono;
 extern crate failure;
+extern crate slog_envlogger;
 #[macro_use]
 extern crate diesel;
 #[macro_use]
@@ -364,9 +365,10 @@ fn update_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonRe
 }
 
 fn create_logger() -> Logger {
-    let decorator = slog_term::TermDecorator::new().build();
+    let decorator = slog_term::TermDecorator::new().stderr().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
-    let async_drain = slog_async::Async::new(drain).build().fuse();
+    let env_drain = slog_envlogger::new(drain);
+    let async_drain = slog_async::Async::new(env_drain).build().fuse();
     Logger::root(async_drain, o!())
 }
 
