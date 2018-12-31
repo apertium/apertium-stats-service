@@ -11,8 +11,6 @@ use std::{
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
 use graphql_client::{GraphQLQuery, Response};
-use hyper::{client::connect::HttpConnector, Client};
-use hyper_tls::HttpsConnector;
 use quick_xml::{
     events::{attributes::Attribute, BytesText, Event},
     Reader,
@@ -430,7 +428,6 @@ impl Worker {
 
     pub fn launch_tasks(
         &self,
-        client: &Client<HttpsConnector<HttpConnector>>,
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
@@ -533,7 +530,7 @@ impl Worker {
             let future = join_all(
                 new_tasks
                     .iter()
-                    .map(|task| self.launch_task(&logger, client, name, task))
+                    .map(|task| self.launch_task(&logger, name, task))
                     .collect::<Vec<_>>(),
             )
             .map(|entries| {
@@ -598,7 +595,6 @@ impl Worker {
     fn launch_task(
         &self,
         logger: &Logger,
-        client: &Client<HttpsConnector<HttpConnector>>,
         package_name: &str,
         task: &Task,
     ) -> impl Future<Item = (Option<Vec<NewEntry>>, Option<String>), Error = ()> {
@@ -611,14 +607,7 @@ impl Worker {
             "kind" => task.kind.to_string(),
         ));
 
-        get_file_stats(
-            &logger,
-            &client,
-            task.file.path.clone(),
-            &package_name,
-            task.kind.clone(),
-        )
-        .then(move |maybe_stats| {
+        get_file_stats(&logger, task.file.path.clone(), &package_name, task.kind.clone()).then(move |maybe_stats| {
             let mut current_tasks = current_tasks_guard.write().unwrap();
             Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
 

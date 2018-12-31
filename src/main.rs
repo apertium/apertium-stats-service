@@ -91,7 +91,7 @@ fn launch_tasks_and_reply(
     kind: Option<&FileKind>,
     options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&HYPER_HTTPS_CLIENT, &name, kind, options.is_recursive()) {
+    match worker.launch_tasks(&name, kind, options.is_recursive()) {
         Ok((ref new_tasks, ref in_progress_tasks, ref _future))
             if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
         {
