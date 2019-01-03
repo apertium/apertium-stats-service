@@ -15,8 +15,8 @@ use tempfile::NamedTempFile;
 use tokio::prelude::{Future, Stream};
 
 use models::{FileKind, StatKind};
+use util::LANG_CODE_RE;
 use HYPER_HTTPS_CLIENT;
-use LANG_CODE_RE;
 use ORGANIZATION_RAW_ROOT;
 
 #[derive(Debug)]
