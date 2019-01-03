@@ -47,7 +47,7 @@ extern crate quick_xml;
 extern crate slog_async;
 extern crate slog_term;
 
-use std::{cmp::max, env, sync::Arc, thread, time::Duration};
+use std::{cmp::max, collections::HashSet, env, hash::BuildHasher, sync::Arc, thread, time::Duration};
 
 use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
@@ -76,7 +76,6 @@ pub const GITHUB_API_REPOS_ENDPOINT: &str = "https://api.github.com/orgs/apertiu
 pub const GITHUB_GRAPHQL_API_ENDPOINT: &str = "https://api.github.com/graphql";
 pub const PACKAGE_UPDATE_MIN_INTERVAL: Duration = Duration::from_secs(10);
 pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
-pub const LANG_CODE_RE: &str = r"\w{2,3}(_\w+)?";
 
 lazy_static! {
     pub static ref RUNTIME: Runtime = Runtime::new().unwrap();
@@ -140,8 +139,11 @@ fn launch_tasks_and_reply(
     }
 }
 
-fn parse_name_param(name: &str) -> Result<String, (Option<JsonValue>, Status)> {
-    normalize_name(name).map_err(|err| {
+fn parse_name_param<H: BuildHasher>(
+    name: &str,
+    package_names: HashSet<String, H>,
+) -> Result<String, (Option<JsonValue>, Status)> {
+    normalize_name(name, package_names).map_err(|err| {
         (
             Some(json!({
                 "name": name,
@@ -197,6 +199,16 @@ fn update_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonRes
     get_packages(worker, query)
 }
 
+fn get_package_names(worker: &State<Arc<Worker>>) -> HashSet<String> {
+    worker
+        .packages
+        .read()
+        .unwrap()
+        .iter()
+        .map(|Package { name, .. }| name.to_string())
+        .collect()
+}
+
 #[get("/")]
 fn index<'a>(accept: Option<&'a Accept>) -> Content<&'a str> {
     if accept.map_or(false, |a| a.preferred().media_type() == &MediaType::HTML) {
@@ -239,7 +251,7 @@ fn openapi_yaml() -> Content<&'static str> {
 
 #[get("/<name>?<params..>", rank = 1)]
 fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: State<Arc<Worker>>) -> JsonResult {
-    let name = parse_name_param(&name)?;
+    let name = parse_name_param(&name, get_package_names(&worker))?;
 
     let entries: Vec<models::Entry> = entries_db::table
         .filter(entries_db::name.eq(&name))
@@ -284,7 +296,7 @@ fn get_specific_stats(
     conn: DbConn,
     worker: State<Arc<Worker>>,
 ) -> JsonResult {
-    let name = parse_name_param(&name)?;
+    let name = parse_name_param(&name, get_package_names(&worker))?;
     let file_kind = parse_kind_param(&name, &kind)?;
 
     let entries: Vec<models::Entry> = entries_db::table
@@ -328,7 +340,7 @@ fn get_specific_stats(
 
 #[post("/<name>?<params..>", rank = 1)]
 fn calculate_stats(name: String, params: Form<Option<Params>>, worker: State<Arc<Worker>>) -> JsonResult {
-    let name = parse_name_param(&name)?;
+    let name = parse_name_param(&name, get_package_names(&worker))?;
     launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
 }
 
@@ -339,7 +351,7 @@ fn calculate_specific_stats(
     params: Form<Option<Params>>,
     worker: State<Arc<Worker>>,
 ) -> JsonResult {
-    let name = parse_name_param(&name)?;
+    let name = parse_name_param(&name, get_package_names(&worker))?;
     let file_kind = parse_kind_param(&name, &kind)?;
     launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
 }

@@ -1,4 +1,11 @@
-use std::{default::Default, error::Error, io::Write, ops::Try};
+use std::{
+    collections::{HashMap, HashSet},
+    default::Default,
+    error::Error,
+    hash::BuildHasher,
+    io::Write,
+    ops::Try,
+};
 
 use diesel::{
     backend::Backend,
@@ -8,7 +15,7 @@ use diesel::{
     sqlite::Sqlite,
     types::IsNull,
 };
-use regex::RegexSet;
+use regex::Regex;
 use rocket::{
     http::Status,
     response::{Responder, Response},
@@ -17,9 +24,44 @@ use rocket::{
 use rocket_contrib::json::JsonValue as RocketJsonValue;
 use serde_json;
 
-use LANG_CODE_RE;
+pub const LANG_CODE_RE: &str = r"(\w{2,3}?)(?:_(\w+))?";
 
-pub fn normalize_name(name: &str) -> Result<String, String> {
+lazy_static! {
+    static ref ALPHA_CODE_MAP: &'static str = include_str!("../iso639.tsv");
+    static ref ALPHA_1_TO_ALPHA_3: HashMap<&'static str, &'static str> = {
+        ALPHA_CODE_MAP
+            .lines()
+            .map(|l| {
+                let split = l.split('\t').collect::<Vec<_>>();
+                (split[0], split[1])
+            })
+            .collect()
+    };
+    static ref ALPHA_3_TO_ALPHA_1: HashMap<&'static str, &'static str> = {
+        ALPHA_CODE_MAP
+            .lines()
+            .map(|l| {
+                let split = l.split('\t').collect::<Vec<_>>();
+                (split[1], split[0])
+            })
+            .collect()
+    };
+}
+
+fn convert_language_code<'a>(code: &'a str, sub_code: Option<&str>) -> Option<String> {
+    let converted_code = match code.len() {
+        3 => ALPHA_3_TO_ALPHA_1.get(code),
+        2 => ALPHA_1_TO_ALPHA_3.get(code),
+        _ => None,
+    };
+
+    sub_code.map_or_else(
+        || converted_code.map(|x| x.to_string()),
+        |y| converted_code.map(|x| format!("{}_{}", x, y)),
+    )
+}
+
+pub fn normalize_name<H: BuildHasher>(name: &str, package_names: HashSet<String, H>) -> Result<String, String> {
     let normalized_name = if name.starts_with("apertium-") {
         name.to_string()
     } else {
@@ -27,18 +69,45 @@ pub fn normalize_name(name: &str) -> Result<String, String> {
     };
 
     lazy_static! {
-        static ref RE: RegexSet = RegexSet::new(&[
-            format!(r"^apertium-({re})$", re = LANG_CODE_RE),
-            format!(r"^apertium-({re})-({re})$", re = LANG_CODE_RE),
-        ])
-        .unwrap();
+        static ref MODULE_RE: Regex = Regex::new(&format!(r"^apertium-{re}$", re = LANG_CODE_RE)).unwrap();
+        static ref PAIR_RE: Regex = Regex::new(&format!(r"^apertium-{re}-{re}$", re = LANG_CODE_RE)).unwrap();
     }
 
-    if RE.matches(&normalized_name).matched_any() {
-        Ok(normalized_name)
-    } else {
-        Err(format!("Invalid package name: {}", name))
+    if package_names.contains(&normalized_name) {
+        return Ok(normalized_name);
     }
+
+    if let Some(converted_name) = {
+        if let Some((Some(language_code), language_sub_code)) = MODULE_RE
+            .captures(&normalized_name)
+            .map(|x| (x.get(1).map(|x| x.as_str()), x.get(2).map(|x| x.as_str())))
+        {
+            convert_language_code(language_code, language_sub_code).map(|x| format!("apertium-{}", x))
+        } else if let Some(captures) = PAIR_RE.captures(&normalized_name) {
+            let (language_code_1, language_code_2) = (&captures[1], &captures[3]);
+            let (language_sub_code_1, language_sub_code_2) =
+                (captures.get(2).map(|x| x.as_str()), captures.get(4).map(|x| x.as_str()));
+            if let (Some(converted_language_code_1), Some(converted_language_code_2)) = (
+                convert_language_code(language_code_1, language_sub_code_1),
+                convert_language_code(language_code_2, language_sub_code_2),
+            ) {
+                Some(format!(
+                    "apertium-{}-{}",
+                    converted_language_code_1, converted_language_code_2
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } {
+        if package_names.contains(&converted_name) {
+            return Ok(converted_name);
+        }
+    }
+
+    Err(format!("Invalid package name: {}", name))
 }
 
 pub enum JsonResult {
