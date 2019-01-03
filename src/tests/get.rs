@@ -334,8 +334,7 @@ fn package_listing() {
         let all_packages_len = body["packages"].as_array().expect("valid packages").len();
         assert!(all_packages_len > 400, all_packages_len);
         assert!(
-            body["as_of"].as_str().expect("valid as_of")
-                < body["next_update"].as_str().expect("valid next_update"),
+            body["as_of"].as_str().expect("valid as_of") < body["next_update"].as_str().expect("valid next_update"),
             body
         );
 

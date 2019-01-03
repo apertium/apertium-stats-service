@@ -118,9 +118,7 @@ fn update_package_listing() {
         assert_eq!(response.status(), Status::Ok);
         let updated_body = parse_response(response);
         let updated_packages_len = updated_body["packages"].as_array().expect("valid packages").len();
-        assert!(
-            body["as_of"].as_str().expect("valid as_of") < updated_body["as_of"].as_str().expect("valid as_of")
-        );
+        assert!(body["as_of"].as_str().expect("valid as_of") < updated_body["as_of"].as_str().expect("valid as_of"));
         assert_eq!(updated_packages_len, packages_len);
 
         let response = client.post(format!("/packages/{}", TEST_LT_MODULE)).dispatch();
