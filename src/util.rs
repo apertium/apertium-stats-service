@@ -77,16 +77,20 @@ pub fn normalize_name<H: BuildHasher>(name: &str, package_names: HashSet<String,
         return Ok(normalized_name);
     }
 
+    let mut format_matches = false;
+
     if let Some(converted_name) = {
         if let Some((Some(language_code), language_sub_code)) = MODULE_RE
             .captures(&normalized_name)
             .map(|x| (x.get(1).map(|x| x.as_str()), x.get(2).map(|x| x.as_str())))
         {
+            format_matches = true;
             convert_language_code(language_code, language_sub_code).map(|x| format!("apertium-{}", x))
         } else if let Some(captures) = PAIR_RE.captures(&normalized_name) {
             let (language_code_1, language_code_2) = (&captures[1], &captures[3]);
             let (language_sub_code_1, language_sub_code_2) =
                 (captures.get(2).map(|x| x.as_str()), captures.get(4).map(|x| x.as_str()));
+            format_matches = true;
             if let (Some(converted_language_code_1), Some(converted_language_code_2)) = (
                 convert_language_code(language_code_1, language_sub_code_1),
                 convert_language_code(language_code_2, language_sub_code_2),
@@ -107,7 +111,11 @@ pub fn normalize_name<H: BuildHasher>(name: &str, package_names: HashSet<String,
         }
     }
 
-    Err(format!("Invalid package name: {}", name))
+    if format_matches {
+        Ok(normalized_name)
+    } else {
+        Err(format!("Invalid package name: {}", name))
+    }
 }
 
 pub enum JsonResult {

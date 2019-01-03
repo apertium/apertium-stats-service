@@ -296,40 +296,56 @@ fn sync_package_stats() {
 }
 
 #[test]
+fn module_code_conversion() {
+    run_test_with_github_auth!(|client| {
+        let response = client.get("/apertium-en/bidix").dispatch();
+        let body = parse_response(response);
+        let name = body["name"].as_str().expect("valid name");
+        assert_eq!(name, "apertium-eng");
+    });
+}
+
+#[test]
+fn pair_code_conversion() {
+    run_test_with_github_auth!(|client| {
+        let response = client.get("/apertium-en-es/monodix").dispatch();
+        let body = parse_response(response);
+        let name = body["name"].as_str().expect("valid name");
+        assert_eq!(name, "apertium-eng-spa");
+
+        let response = client.get("/apertium-eng-glg/monodix").dispatch();
+        let body = parse_response(response);
+        let name = body["name"].as_str().expect("valid name");
+        assert_eq!(name, "apertium-en-gl");
+
+        let response = client.get("/apertium-zho_CN-zho_TW/monodix").dispatch();
+        let body = parse_response(response);
+        let name = body["name"].as_str().expect("valid name");
+        assert_eq!(name, "apertium-zh_CN-zh_TW");
+    });
+}
+
+#[test]
 fn package_listing() {
     run_test_with_github_auth!(|client| {
-        let mut sleep_duration = INITIAL_WAIT_DURATION;
-        while sleep_duration < MAX_WAIT_DURATION {
-            let response = client.get("/packages").dispatch();
-            assert_eq!(response.status(), Status::Ok);
-            let body = parse_response(response);
-            let all_packages_len = body["packages"].as_array().expect("valid packages").len();
+        let response = client.get("/packages").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = parse_response(response);
+        let all_packages_len = body["packages"].as_array().expect("valid packages").len();
+        assert!(all_packages_len > 400, all_packages_len);
+        assert!(
+            body["as_of"].as_str().expect("valid as_of")
+                < body["next_update"].as_str().expect("valid next_update"),
+            body
+        );
 
-            if all_packages_len > 400 {
-                assert!(
-                    body["as_of"].as_str().expect("valid as_of")
-                        < body["next_update"].as_str().expect("valid next_update"),
-                    body
-                );
-
-                let response = client.get(format!("/packages/{}", TEST_LT_MODULE)).dispatch();
-                assert_eq!(response.status(), Status::Ok);
-                let body = parse_response(response);
-                let specific_packages_len = body["packages"].as_array().expect("valid packages").len();
-                assert!(
-                    specific_packages_len < all_packages_len && specific_packages_len > 10,
-                    body
-                );
-
-                return;
-            } else {
-                assert!(body["as_of"].is_null(), body["as_of"].to_string());
-            }
-
-            sleep(sleep_duration);
-            sleep_duration *= 2;
-        }
-
-        panic!("failed while waiting for completion");
+        let response = client.get(format!("/packages/{}", TEST_LT_MODULE)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = parse_response(response);
+        let specific_packages_len = body["packages"].as_array().expect("valid packages").len();
+        assert!(
+            specific_packages_len < all_packages_len && specific_packages_len > 10,
+            body
+        );
     });
 }

@@ -167,10 +167,7 @@ components:
             type: object
             properties:
               as_of:
-                type: string
-                format: date-time
-                example: '2018-12-08T01:14:30.363888593'
-                nullable: true
+                $ref: '#/components/schemas/DateTime'
               next_update:
                 $ref: '#/components/schemas/DateTime'
               packages:

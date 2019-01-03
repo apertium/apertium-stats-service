@@ -427,8 +427,17 @@ pub fn service(database_url: String, github_auth_token: Option<String>) -> rocke
     let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token));
 
     if package_listing_routes_enabled {
+        let initial_delay = {
+            match worker.update_packages() {
+                Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
+                Err(err) => panic!("Failed to initialize package list: {:?}", err),
+            }
+        };
+        worker.record_next_packages_update(initial_delay);
+
         let package_update_worker = worker.clone();
         thread::spawn(move || loop {
+            thread::sleep(initial_delay);
             let next_update = {
                 match package_update_worker.update_packages() {
                     Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
