@@ -4,7 +4,7 @@ use std::{
     fmt,
     process::{Command, Output},
     str,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
 
@@ -307,6 +307,7 @@ fn get_packages(
         .bearer_auth(github_auth_token)
         .json(&query)
         .send()?
+        .error_for_status()?
         .json()?;
 
     if let Some(errors) = response.errors {
@@ -403,6 +404,7 @@ pub struct Worker {
     pub packages: RwLock<Vec<Package>>,
     pub packages_updated: RwLock<Option<NaiveDateTime>>,
     pub packages_next_update: RwLock<NaiveDateTime>,
+    packages_update_mutex: Mutex<()>,
     pool: Pool,
     current_tasks: Arc<RwLock<HashMap<String, Tasks>>>,
     github_auth_token: Option<String>,
@@ -415,6 +417,7 @@ impl Worker {
             packages: RwLock::new(vec![]),
             packages_updated: RwLock::new(None),
             packages_next_update: RwLock::new(Utc::now().naive_utc()),
+            packages_update_mutex: Mutex::new(()),
             current_tasks: Arc::new(RwLock::new(HashMap::new())),
             logger,
             github_auth_token,
@@ -546,6 +549,7 @@ impl Worker {
     }
 
     pub fn update_packages(&self) -> Result<Duration, failure::Error> {
+        let _guard = self.packages_update_mutex.lock().unwrap();
         let github_auth_token = self
             .github_auth_token
             .as_ref()

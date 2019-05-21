@@ -47,8 +47,20 @@ extern crate quick_xml;
 extern crate slog_async;
 extern crate slog_term;
 
-use std::{cmp::max, collections::HashSet, env, hash::BuildHasher, sync::Arc, thread, time::Duration};
+use std::{
+    cmp::max,
+    collections::HashSet,
+    env,
+    hash::BuildHasher,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
+    time::Duration,
+};
 
+use chrono::Utc;
 use diesel::{dsl::sql, prelude::*};
 use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
@@ -420,14 +432,18 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_r
         .attach(cors_options)
 }
 
-pub fn service(database_url: String, github_auth_token: Option<String>) -> rocket::Rocket {
+pub fn service(
+    database_url: String,
+    github_auth_token: Option<String>,
+    terminate_package_update_worker: Option<Arc<AtomicBool>>,
+) -> rocket::Rocket {
     let pool = db::init_pool(&database_url);
     let logger = create_logger();
     let package_listing_routes_enabled = github_auth_token.is_some();
     let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token));
 
     if package_listing_routes_enabled {
-        let initial_delay = {
+        let mut initial_delay = {
             match worker.update_packages() {
                 Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                 Err(err) => panic!("Failed to initialize package list: {:?}", err),
@@ -438,6 +454,16 @@ pub fn service(database_url: String, github_auth_token: Option<String>) -> rocke
         let package_update_worker = worker.clone();
         thread::spawn(move || loop {
             thread::sleep(initial_delay);
+            initial_delay = Duration::from_secs(0);
+
+            if terminate_package_update_worker
+                .as_ref()
+                .map_or(false, |v| v.load(Ordering::SeqCst))
+            {
+                info!(package_update_worker.logger, "Package update worker terminating");
+                return;
+            }
+
             let next_update = {
                 match package_update_worker.update_packages() {
                     Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
@@ -447,8 +473,23 @@ pub fn service(database_url: String, github_auth_token: Option<String>) -> rocke
                     },
                 }
             };
+
+            let mut update_scheduled = Utc::now().naive_utc();
             package_update_worker.record_next_packages_update(next_update);
-            thread::sleep(next_update);
+            loop {
+                thread::sleep(next_update);
+
+                if package_update_worker.packages_updated.read().unwrap().unwrap() > update_scheduled {
+                    debug!(
+                        package_update_worker.logger,
+                        "Delaying scheduled package update {:?}", next_update
+                    );
+                    update_scheduled = Utc::now().naive_utc();
+                    package_update_worker.record_next_packages_update(next_update);
+                } else {
+                    break;
+                }
+            }
         });
     }
 
@@ -465,5 +506,5 @@ fn main() {
         eprintln!("GITHUB_AUTH_TOKEN environment variable not set -- /packages route will be unavailable");
     }
 
-    service(database_url, github_auth_token).launch();;
+    service(database_url, github_auth_token, None).launch();
 }

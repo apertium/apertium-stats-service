@@ -1,7 +1,13 @@
+use std::sync::Mutex;
+
 use rocket_contrib::json::JsonValue;
 use serde_json;
 
 use super::*;
+
+lazy_static! {
+    pub static ref GITHUB_AUTH_MUTEX: Mutex<()> = Mutex::new(());
+}
 
 pub fn setup_database() -> Box<tempfile::NamedTempFile> {
     let db_file = NamedTempFile::new().expect("valid database file");
@@ -22,20 +28,32 @@ macro_rules! run_test {
     (| $client:ident | $block:expr) => {{
         let db_file = $crate::tests::common::setup_database();
         let db_path = db_file.path().to_str().expect("valid database path");
-        let $client = Client::new(service(db_path.into(), None)).expect("valid rocket instance");
+        let $client = Client::new(service(db_path.into(), None, None)).expect("valid rocket instance");
         $block
     }};
 }
 
 macro_rules! run_test_with_github_auth {
     (| $client:ident | $block:expr) => {{
+        use std::{panic, sync, thread};
+
         dotenv().ok();
         let db_file = $crate::tests::common::setup_database();
         let db_path = db_file.path().to_str().expect("valid database path");
         let github_auth_token =
             Some(env::var("GITHUB_AUTH_TOKEN").expect("testing requires GITHUB_AUTH_TOKEN environment variable"));
-        let $client = Client::new(service(db_path.into(), github_auth_token)).expect("valid rocket instance");
-        $block
+        let guard = GITHUB_AUTH_MUTEX.lock().unwrap();
+        if let Err(err) = panic::catch_unwind(|| {
+            let termination_signal = sync::Arc::new(sync::atomic::AtomicBool::new(false));
+            let $client = Client::new(service(db_path.into(), github_auth_token, Some(termination_signal.clone())))
+                .expect("valid rocket instance");
+            $block
+            termination_signal.store(true, sync::atomic::Ordering::SeqCst);
+            thread::sleep(Duration::from_secs(10));
+        }) {
+            drop(guard);
+            panic::resume_unwind(err);
+        }
     }};
 }
 
