@@ -16,12 +16,12 @@ script:
   - cargo clippy --all-targets --all-features -- -D warnings
   - cargo test --verbose
 after_success:
-  - cargo tarpaulin --debug --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  - cargo tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 matrix:
   include:
     - rust: nightly-2018-12-06
       env:
-        - TARPAULIN_VERSION=0.6.11
+        - TARPAULIN_VERSION=0.8.0
         - DIESEL_CLI_VERSION=1.2.0
 notifications:
   on_failure: change
