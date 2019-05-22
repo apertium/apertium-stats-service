@@ -124,7 +124,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
         };
     }
 
-    let matches = RE.matches(file_name.trim_right_matches(".xml"));
+    let matches = RE.matches(file_name.trim_end_matches(".xml"));
     matches.into_iter().collect::<Vec<_>>().pop().and_then(|i| match i {
         0 => Some(FileKind::Monodix),
         1 => Some(FileKind::Bidix),
