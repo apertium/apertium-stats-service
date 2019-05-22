@@ -7,7 +7,6 @@ use std::{
     str::Utf8Error,
 };
 
-use hyper::Error as HyperError;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use rocket_contrib::json::JsonValue;
 use slog::Logger;
@@ -21,7 +20,7 @@ use ORGANIZATION_RAW_ROOT;
 
 #[derive(Debug)]
 pub enum StatsError {
-    Hyper(HyperError),
+    Hyper(hyper::Error),
     Utf8(Utf8Error),
     Io(io::Error),
     Xml(String),

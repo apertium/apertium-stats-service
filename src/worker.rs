@@ -1,7 +1,5 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
-    error::Error,
-    fmt,
     process::{Command, Output},
     str,
     sync::{Arc, Mutex, RwLock},
@@ -91,15 +89,10 @@ pub struct Package {
     pub last_commit: Option<Commit>,
 }
 
-#[derive(Debug)]
-pub struct PackageUpdateError(String);
-
-impl Error for PackageUpdateError {}
-
-impl fmt::Display for PackageUpdateError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
+#[derive(Debug, Fail)]
+enum PackageUpdateError {
+    #[fail(display = "Missing response data key: {}", _0)]
+    MissingData(String),
 }
 
 fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Item = Option<String>, Error = ()> {
@@ -318,16 +311,16 @@ fn get_packages(
 
     let response_data: packages_query::ResponseData = response
         .data
-        .ok_or_else(|| PackageUpdateError("Missing response data".to_string()))?;
+        .ok_or_else(|| PackageUpdateError::MissingData("data".to_string()))?;
 
     let repositories = response_data
         .organization
-        .ok_or_else(|| PackageUpdateError("Missing organization".to_string()))?
+        .ok_or_else(|| PackageUpdateError::MissingData("data.organization".to_string()))?
         .repositories;
 
     let packages = repositories
         .edges
-        .ok_or_else(|| PackageUpdateError("Missing repositories".to_string()))?
+        .ok_or_else(|| PackageUpdateError::MissingData("data.organization.repository.edges".to_string()))?
         .into_iter()
         .filter_map(|repo_node| {
             if repo_node.is_none() {
@@ -392,7 +385,7 @@ fn get_packages(
 
     let limits = response_data
         .rate_limit
-        .ok_or_else(|| PackageUpdateError("Missing rate limits".to_string()))?;
+        .ok_or_else(|| PackageUpdateError::MissingData("data.organization.rate_limit".to_string()))?;
 
     debug!(logger, "Fetched {} packages", packages.len());
 

@@ -16,6 +16,7 @@ mod worker;
 mod tests;
 
 extern crate chrono;
+#[macro_use]
 extern crate failure;
 extern crate slog_envlogger;
 #[macro_use]
