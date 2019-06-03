@@ -92,7 +92,7 @@ pub fn get_transfer_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind,
     loop {
         match reader.read_event(&mut buf) {
             Ok(Event::Start(ref e)) if e.name() == b"rule" => rule_count += 1,
-            Ok(Event::Start(ref e)) if e.name() == b"macro" => macro_count += 1,
+            Ok(Event::Start(ref e)) if e.name() == b"def-macro" => macro_count += 1,
             Ok(Event::Eof) => break,
             Err(e) => {
                 return Err(StatsError::Xml(format!(
