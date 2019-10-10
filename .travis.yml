@@ -21,7 +21,7 @@ matrix:
   include:
     - rust: nightly-2019-01-13
       env:
-        - TARPAULIN_VERSION=0.8.0
+        - TARPAULIN_VERSION=0.9.0
         - DIESEL_CLI_VERSION=1.2.0
 notifications:
   on_failure: change
