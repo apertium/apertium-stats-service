@@ -122,6 +122,7 @@ fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Ite
     })
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Vec<FileWithoutSha>, String> {
     fn decode_utf8<'a>(bytes: &'a [u8], reader: &Reader<&[u8]>) -> Result<&'a str, String> {
         str::from_utf8(bytes).map_err(|err| {

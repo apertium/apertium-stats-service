@@ -127,7 +127,7 @@ impl Try for JsonResult {
     type Ok = RocketJsonValue;
     type Error = (Option<RocketJsonValue>, Status);
 
-    fn into_result(self) -> Result<Self::Ok, Self::Error> {
+    fn into_result(self) -> Result<<Self as Try>::Ok, Self::Error> {
         match self {
             JsonResult::Ok(value) => Ok(value),
             JsonResult::Err(value, status) => Err((value, status)),
@@ -138,7 +138,7 @@ impl Try for JsonResult {
         JsonResult::Err(value, status)
     }
 
-    fn from_ok(value: Self::Ok) -> Self {
+    fn from_ok(value: <Self as Try>::Ok) -> Self {
         JsonResult::Ok(value)
     }
 }
@@ -174,7 +174,7 @@ impl FromSql<JsonType, Sqlite> for JsonValue {
         let bytes = <*const [u8] as FromSql<Binary, Sqlite>>::from_sql(not_none!(value.into()))?;
         serde_json::from_slice(unsafe { &*bytes })
             .map(JsonValue)
-            .map_err(|e| Box::new(e) as Box<Error + Send + Sync>)
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
     }
 }
 
@@ -182,7 +182,7 @@ impl ToSql<JsonType, Sqlite> for JsonValue {
     fn to_sql<W: Write>(&self, out: &mut Output<W, Sqlite>) -> serialize::Result {
         serde_json::to_writer(out, &self.0)
             .map(|_| if self.0.is_null() { IsNull::Yes } else { IsNull::No })
-            .map_err(|e| Box::new(e) as Box<Error + Send + Sync>)
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
     }
 }
 
