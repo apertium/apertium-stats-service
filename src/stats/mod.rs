@@ -3,6 +3,7 @@ mod xml;
 
 use std::{
     io::{self, BufRead, BufReader, Write},
+    num::ParseIntError,
     process::{Command, Output},
     str::Utf8Error,
 };
@@ -74,7 +75,11 @@ pub fn get_file_stats(
                                 }
                                 for capture in RE.captures_iter(&cg_conv_output) {
                                     if &capture[1] == "Rules" {
-                                        return Ok(vec![(StatKind::Rules, json!(capture[2]))]);
+                                        let rule_count_string = &capture[2];
+                                        let rule_count: u32 = rule_count_string
+                                            .parse()
+                                            .map_err(|e: ParseIntError| StatsError::CgComp(e.to_string()))?;
+                                        return Ok(vec![(StatKind::Rules, json!(rule_count))]);
                                     }
                                 }
 
