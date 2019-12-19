@@ -1,3 +1,3 @@
 UPDATE entries
-SET value = CAST(value AS TEXT)
-WHERE stat_kind = "Rules";
+SET value = ('"' || value || '"')
+WHERE stat_kind = "rules" AND file_kind = "rlx";

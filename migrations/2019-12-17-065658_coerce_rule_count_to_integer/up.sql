@@ -1,3 +1,3 @@
 UPDATE entries
-SET value = CAST(value AS INTEGER)
-WHERE stat_kind = "Rules";
+SET value = REPLACE(value, '"', '')
+WHERE stat_kind = "rules" AND file_kind = "rlx";
