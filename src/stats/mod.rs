@@ -2,7 +2,7 @@ mod lexc;
 mod xml;
 
 use std::{
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, Seek, SeekFrom, Write},
     num::ParseIntError,
     process::{Command, Output},
     str::Utf8Error,
@@ -11,7 +11,7 @@ use std::{
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use rocket_contrib::json::JsonValue;
 use slog::Logger;
-use tempfile::NamedTempFile;
+use tempfile::{tempfile, NamedTempFile};
 use tokio::prelude::{Future, Stream};
 
 use models::{FileKind, StatKind};
@@ -26,6 +26,7 @@ pub enum StatsError {
     Io(io::Error),
     Xml(String),
     CgComp(String),
+    Lexd(String),
     Lexc(String),
 }
 
@@ -99,6 +100,40 @@ pub fn get_file_stats(
                         Ok(vec![(StatKind::Rules, json!(rule_count))])
                     },
                     FileKind::Lexc => self::lexc::get_stats(&logger, body),
+                    FileKind::Lexd => {
+                        let mut lexd_file = tempfile().map_err(StatsError::Io)?;
+                        lexd_file.write_all(&*body).map_err(StatsError::Io)?;
+                        lexd_file.flush().map_err(StatsError::Io)?;
+                        lexd_file.seek(SeekFrom::Start(0)).map_err(StatsError::Io)?;
+
+                        let output = Command::new("lexd")
+                            .stdin(lexd_file)
+                            .arg("-x")
+                            .output();
+
+                        match output {
+                            Ok(Output { status, ref stderr, .. }) if status.success() => {
+                                let lexd_output = String::from_utf8_lossy(stderr);
+
+                                lazy_static! {
+                                    static ref RE: Regex = Regex::new(r"Lexicons: (\d+)\nLexicon entries: (\d+)\nPatterns: (\d+)\nPattern entries: (\d+)").unwrap();
+                                }
+                                let captures = RE.captures(&lexd_output).ok_or_else(|| StatsError::Lexd("Missing stats".to_string()))?;
+
+                                let mut stats = vec![];
+                                for (i, kind) in vec![StatKind::Lexicons, StatKind::LexiconEntries, StatKind::Patterns, StatKind::PatternEntries]
+                                    .into_iter()
+                                    .enumerate() {
+                                        stats.push((kind, json!(captures[i + 1].parse::<i32>().map_err(|e: ParseIntError| StatsError::Lexd(e.to_string()))?)))
+                                    }
+                                Ok(stats)
+                            },
+                            Ok(Output { ref stderr, .. }) => {
+                                Err(StatsError::Lexd(String::from_utf8_lossy(stderr).to_string()))
+                            },
+                            Err(err) => Err(StatsError::Io(err)),
+                        }
+                    }
                 })
         })
 }
@@ -121,6 +156,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
                 format!(r"apertium-{re}\.{re}\.lexc$", re = re),
                 format!(r"apertium-{re}-{re}\.{re}\.twol$", re = re),
                 format!(r"apertium-{re}\.{re}\.twol$", re = re),
+                format!(r"apertium-{re}\.{re}\.lexd$", re = re),
             ])
             .size_limit(50_000_000)
             .build()
@@ -139,6 +175,7 @@ pub fn get_file_kind(file_name: &str) -> Option<FileKind> {
         9 => Some(FileKind::Transfer),
         10 => Some(FileKind::Lexc),
         11 | 12 => Some(FileKind::Twol),
+        13 => Some(FileKind::Lexd),
         _ => None,
     })
 }

@@ -16,6 +16,7 @@ pub enum FileKind {
     Transfer,    // emits Rules, Macros
     Lexc,        // emits Stems, VanillaStems
     Twol,        // emits Rules
+    Lexd,        // emits Lexicons, LexiconEntries, Patterns, PatternEntries
 }
 
 impl FileKind {
@@ -30,6 +31,7 @@ impl FileKind {
             "transfer" => Ok(FileKind::Transfer),
             "lexc" => Ok(FileKind::Lexc),
             "twol" => Ok(FileKind::Twol),
+            "lexd" => Ok(FileKind::Lexd),
             _ => Err(format!("Invalid file kind: {}", s)),
         }
     }
@@ -49,6 +51,10 @@ pub enum StatKind {
     Macros,
     Stems,
     VanillaStems,
+    Lexicons,
+    LexiconEntries,
+    Patterns,
+    PatternEntries,
 }
 
 #[derive(QueryableByName, Queryable, Serialize)]
