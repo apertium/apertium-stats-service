@@ -5,7 +5,8 @@ RUN apt-get -qq update && \
     apt-get -qq install --no-install-recommends \
         curl \
         libssl-dev \
-        libsqlite3-dev
+        libsqlite3-dev \
+        subversion
 
 RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2021-03-04
 ENV PATH="/root/.cargo/bin:${PATH}"
