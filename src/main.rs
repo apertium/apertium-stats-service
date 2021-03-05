@@ -1,4 +1,4 @@
-#![feature(custom_attribute, try_trait, proc_macro_hygiene, decl_macro)]
+#![feature(try_trait, proc_macro_hygiene, decl_macro)]
 #![deny(clippy::all)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::suspicious_else_formatting)]
