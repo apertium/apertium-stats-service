@@ -2,6 +2,7 @@
 #![deny(clippy::all)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::suspicious_else_formatting)]
+#![allow(clippy::suspicious_operation_groupings)]
 #![allow(proc_macro_derive_resolution_fallback)]
 
 mod db;
