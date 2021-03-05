@@ -48,7 +48,7 @@ lazy_static! {
     };
 }
 
-fn convert_language_code<'a>(code: &'a str, sub_code: Option<&str>) -> Option<String> {
+fn convert_language_code(code: &str, sub_code: Option<&str>) -> Option<String> {
     let converted_code = match code.len() {
         3 => ALPHA_3_TO_ALPHA_1.get(code),
         2 => ALPHA_1_TO_ALPHA_3.get(code),

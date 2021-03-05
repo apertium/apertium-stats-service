@@ -129,6 +129,6 @@ fn update_package_listing() {
             updated_body["as_of"].as_str().expect("valid as_of")
                 < updated_body_2["as_of"].as_str().expect("valid as_of")
         );
-        assert!(updated_packages_len_2 < updated_packages_len, "{}", updated_body_2);
+        assert!(updated_packages_len_2 < updated_packages_len, "{:#?}", updated_body_2);
     });
 }

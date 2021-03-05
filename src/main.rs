@@ -224,7 +224,7 @@ fn get_package_names(worker: &State<Arc<Worker>>) -> HashSet<String> {
 }
 
 #[get("/")]
-fn index<'a>(accept: Option<&'a Accept>) -> Content<&'a str> {
+fn index(accept: Option<&Accept>) -> Content<&str> {
     if accept.map_or(false, |a| a.preferred().media_type() == &MediaType::HTML) {
         Content(ContentType::HTML, include_str!("../index.html"))
     } else {
@@ -297,7 +297,7 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
         JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
-            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
+            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(Vec::new),
         }))
     }
 }
@@ -347,7 +347,7 @@ fn get_specific_stats(
         JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
-            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(|| vec![]),
+            "in_progress": worker.get_tasks_in_progress(&name).unwrap_or_else(Vec::new),
         }))
     }
 }

@@ -174,19 +174,17 @@ fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Ve
                     Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"name" => in_name = true,
                     Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"size" => in_size = true,
                     Ok(Event::Start(ref e)) if in_file_entry && e.name() == b"commit" => {
-                        for attr in e.attributes() {
-                            if let Ok(Attribute { value, key }) = attr {
-                                if decode_utf8(&key, &reader)? == "revision" {
-                                    revision = Some(decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
-                                        format!(
-                                            "Revision number parsing error at position {}: {:?}",
-                                            reader.buffer_position(),
-                                            err,
-                                        )
-                                    })?);
+                        for Attribute { value, key } in e.attributes().flatten() {
+                            if decode_utf8(&key, &reader)? == "revision" {
+                                revision = Some(decode_utf8(&value, &reader)?.parse::<i32>().map_err(|err| {
+                                    format!(
+                                        "Revision number parsing error at position {}: {:?}",
+                                        reader.buffer_position(),
+                                        err,
+                                    )
+                                })?);
 
-                                    break;
-                                }
+                                break;
                             }
                         }
                     },
@@ -334,7 +332,7 @@ fn get_packages(
                 topics: repo.repository_topics.nodes.map_or(vec![], |topics| {
                     topics
                         .into_iter()
-                        .filter_map(|topic| topic.map(|x| x.topic).map(|x| x.name.to_string()))
+                        .filter_map(|topic| topic.map(|x| x.topic).map(|x| x.name))
                         .collect()
                 }),
                 last_commit: repo.ref_.and_then(|x| match x.target.on {
@@ -430,7 +428,7 @@ impl Worker {
         recursive: bool,
     ) -> Result<(Tasks, Tasks, impl Future<Item = Vec<NewEntry>>), String> {
         let logger = self.logger.new(o!(
-            "package" => name.to_string().clone(),
+            "package" => name.to_string(),
             "recursive" => recursive,
         ));
 
@@ -467,7 +465,7 @@ impl Worker {
                 .iter()
                 .map(|(_, FileWithoutSha { revision, .. })| *revision)
                 .collect::<Vec<_>>();
-            unique_revisions.sort();
+            unique_revisions.sort_unstable();
             unique_revisions.dedup();
             debug!(logger, "Found {} unique revisions", unique_revisions.len());
 
@@ -533,7 +531,7 @@ impl Worker {
             .map(|entries| {
                 entries
                     .into_iter()
-                    .flat_map(|x| x.0.unwrap_or_else(|| vec![]).clone())
+                    .flat_map(|x| x.0.unwrap_or_else(Vec::new))
                     .collect()
             });
             let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
