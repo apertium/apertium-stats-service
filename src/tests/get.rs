@@ -81,9 +81,9 @@ fn module_stats() {
         let file = &in_progress[0]["file"];
         assert_eq!(file["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
         let size = file["size"].as_i64().expect("size is i64");
-        assert!(size > 500, size);
+        assert!(size > 500, "{}", size);
         let revision = file["revision"].as_i64().expect("revision is i64");
-        assert!(revision > 500, revision);
+        assert!(revision > 500, "{}", revision);
         let sha = file["sha"].as_str().expect("sha is str");
         assert_eq!(sha.len(), 40);
 
@@ -98,11 +98,11 @@ fn module_stats() {
                 assert_eq!(stats[0]["stat_kind"], "Rules");
                 assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
                 let revision = stats[0]["revision"].as_i64().expect("revision is i64");
-                assert!(revision > 500, revision);
+                assert!(revision > 500, "{}", revision);
                 let sha = stats[0]["sha"].as_str().expect("sha is str");
                 assert_eq!(sha.len(), 40);
                 let value = stats[0]["value"].as_i64().expect("value is i64");
-                assert!(value > 15, value);
+                assert!(value > 15, "{}", value);
 
                 let response = client.get(endpoint.clone()).dispatch();
                 assert_eq!(response.status(), Status::Ok);
@@ -344,6 +344,7 @@ fn package_listing() {
         let specific_packages_len = body["packages"].as_array().expect("valid packages").len();
         assert!(
             specific_packages_len < all_packages_len && specific_packages_len > 10,
+            "{}",
             body
         );
     });

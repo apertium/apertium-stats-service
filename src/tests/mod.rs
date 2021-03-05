@@ -42,7 +42,7 @@ fn usage_plaintext() {
         let mut response = client.get("/").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = response.body_string().expect("non-empty body");
-        assert!(body.starts_with("USAGE"), body);
+        assert!(body.starts_with("USAGE"), "{}", body);
     });
 }
 
@@ -52,7 +52,7 @@ fn usage_html() {
         let mut response = client.get("/").header(Accept::HTML).dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = response.body_string().expect("non-empty body");
-        assert!(body.contains("SwaggerUIBundle"), body);
+        assert!(body.contains("SwaggerUIBundle"), "{}", body);
     });
 }
 
@@ -62,6 +62,6 @@ fn openapi_yaml() {
         let mut response = client.get("/openapi.yaml").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = response.body_string().expect("non-empty body");
-        assert!(body.starts_with("openapi"), body);
+        assert!(body.starts_with("openapi"), "{}", body);
     });
 }
