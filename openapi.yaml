@@ -5,7 +5,7 @@ info:
   description: Stateful Rust web service that enables the efficient concurrent compilation
     and distribution of statistics regarding Apertium packages via a RESTful API.
 servers:
-  - url: https://apertium.projectjj.com/stats-service
+  - url: https://apertium.org/stats-service
     description: Production
   - url: http://localhost:8000
     description: Development
