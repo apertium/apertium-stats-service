@@ -9,7 +9,7 @@ fn nonexistent_package_stats() {
         let body = parse_response(response);
         assert_eq!(body["name"], "apertium-xxx");
         let error = body["error"].as_str().expect("error is string");
-        assert!(error.starts_with("Package not found"), error.to_string());
+        assert!(error.starts_with("Package not found"), "{}", error.to_string());
     });
 }
 
@@ -81,9 +81,9 @@ fn module_stats() {
         let file = &in_progress[0]["file"];
         assert_eq!(file["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
         let size = file["size"].as_i64().expect("size is i64");
-        assert!(size > 500, size);
+        assert!(size > 500, "{}", size);
         let revision = file["revision"].as_i64().expect("revision is i64");
-        assert!(revision > 500, revision);
+        assert!(revision > 500, "{}", revision);
         let sha = file["sha"].as_str().expect("sha is str");
         assert_eq!(sha.len(), 40);
 
@@ -98,11 +98,11 @@ fn module_stats() {
                 assert_eq!(stats[0]["stat_kind"], "Rules");
                 assert_eq!(stats[0]["path"], format!("apertium-{0}.err.twol", TEST_HFST_MODULE));
                 let revision = stats[0]["revision"].as_i64().expect("revision is i64");
-                assert!(revision > 500, revision);
+                assert!(revision > 500, "{}", revision);
                 let sha = stats[0]["sha"].as_str().expect("sha is str");
                 assert_eq!(sha.len(), 40);
                 let value = stats[0]["value"].as_i64().expect("value is i64");
-                assert!(value > 15, value);
+                assert!(value > 15, "{}", value);
 
                 let response = client.get(endpoint.clone()).dispatch();
                 assert_eq!(response.status(), Status::Ok);
@@ -110,6 +110,7 @@ fn module_stats() {
                 assert_eq!(body["name"], module);
                 assert!(
                     body["in_progress"].as_array().expect("valid in_progress").is_empty(),
+                    "{}",
                     body["in_progress"].to_string()
                 );
                 assert_eq!(
@@ -151,6 +152,7 @@ fn hfst_pair_stats() {
                             entry["value"].as_i64().expect("value is i64")
                         ))
                         .all(|(kind, value)| kind == "Macros" || value > 0),
+                    "{}",
                     body["stats"].to_string(),
                 );
 
@@ -168,7 +170,7 @@ fn lt_pair_stats() {
     let endpoint = format!("/{}?async=false", module);
 
     run_test!(|client| {
-        let response = client.get(endpoint.clone()).dispatch();
+        let response = client.get(endpoint).dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = parse_response(response);
         let in_progress = body["in_progress"].as_array().expect("valid in_progress");
@@ -185,6 +187,7 @@ fn lt_pair_stats() {
                     entry["value"].as_i64().expect("value is i64")
                 ))
                 .all(|(kind, value)| kind == "Macros" || value > 0),
+            "{}",
             body["stats"].to_string(),
         );
 
@@ -192,7 +195,7 @@ fn lt_pair_stats() {
             .iter()
             .map(|entry| entry["path"].as_str().expect("path is string"))
             .collect::<Vec<_>>();
-        files.sort();
+        files.sort_unstable();
         files.dedup();
         assert_eq!(files.len(), TEST_LT_PAIR_FILES_COUNT);
     });
@@ -266,6 +269,7 @@ fn recursive_package_stats() {
                     stats
                         .iter()
                         .any(|entry| entry["path"].as_str().expect("path is string").contains('/')),
+                    "{}",
                     body["stats"].to_string()
                 );
 
@@ -283,7 +287,7 @@ fn sync_package_stats() {
     let endpoint = format!("/{}/monodix?async=false", module);
 
     run_test!(|client| {
-        let response = client.get(endpoint.clone()).dispatch();
+        let response = client.get(endpoint).dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = parse_response(response);
         let in_progress = body["in_progress"].as_array().expect("valid in_progress");
@@ -332,9 +336,10 @@ fn package_listing() {
         assert_eq!(response.status(), Status::Ok);
         let body = parse_response(response);
         let all_packages_len = body["packages"].as_array().expect("valid packages").len();
-        assert!(all_packages_len > 400, all_packages_len);
+        assert!(all_packages_len > 400, "{}", all_packages_len);
         assert!(
             body["as_of"].as_str().expect("valid as_of") < body["next_update"].as_str().expect("valid next_update"),
+            "{:#?}",
             body
         );
 
@@ -344,6 +349,7 @@ fn package_listing() {
         let specific_packages_len = body["packages"].as_array().expect("valid packages").len();
         assert!(
             specific_packages_len < all_packages_len && specific_packages_len > 10,
+            "{:#?}",
             body
         );
     });

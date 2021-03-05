@@ -77,7 +77,7 @@ where
                     return;
                 }
             },
-            status => panic!(format!("recieved unexpected status: {:?}", status)),
+            status => panic!("recieved unexpected status: {:?}", status),
         }
 
         sleep(sleep_duration);
