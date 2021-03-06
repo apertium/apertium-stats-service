@@ -63,7 +63,8 @@ use std::{
 };
 
 use chrono::Utc;
-use diesel::{dsl::sql, prelude::*};
+use diesel::{sql_query, prelude::*};
+use diesel::sql_types::Text;
 use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
@@ -79,7 +80,7 @@ use slog::{Drain, Logger};
 use tokio::{executor::current_thread::CurrentThread, prelude::Future, runtime::Runtime};
 
 use db::DbConn;
-use models::FileKind;
+use models::{FileKind, FileKindMapping};
 use schema::entries as entries_db;
 use util::{normalize_name, JsonResult, Params};
 use worker::{Package, Task, Worker};
@@ -288,12 +289,22 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
             launch_tasks_and_reply(&worker, name, None, params.into_inner().unwrap_or_default())
         }
     } else {
-        let entries = entries_db::table
-            .filter(entries_db::name.eq(&name))
-            .filter(sql("1 GROUP BY stat_kind, path")) // HACK: Diesel has no real group_by :(
-            .order(entries_db::created)
-            .load::<models::Entry>(&*conn)
+        // Diesel doesn't support self JOINs or GROUP BY :(
+        let entries: Vec<models::Entry> = sql_query("
+            SELECT *
+            FROM entries e1
+            JOIN (
+                SELECT id, MAX(created)
+                FROM entries
+                WHERE name = ?
+                GROUP BY stat_kind, path
+            ) e2
+            ON e1.id = e2.id
+        ")
+            .bind::<Text, _>(&name)
+            .load(&*conn)
             .map_err(|err| handle_db_error(&worker.logger, err))?;
+
         JsonResult::Ok(json!({
             "name": name,
             "stats": entries,
@@ -337,13 +348,23 @@ fn get_specific_stats(
         drop(conn);
         launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
     } else {
-        let entries = entries_db::table
-            .filter(entries_db::name.eq(&name))
-            .filter(entries_db::file_kind.eq(&file_kind))
-            .filter(sql("1 GROUP BY stat_kind, path")) // HACK: Diesel has no real group_by :(
-            .order(entries_db::created)
-            .load::<models::Entry>(&*conn)
+        // Diesel doesn't support self JOINs or GROUP BY :(
+        let entries: Vec<models::Entry> = sql_query("
+            SELECT *
+            FROM entries e1
+            JOIN (
+                SELECT id, MAX(created)
+                FROM entries
+                WHERE name = ? AND file_kind = ?
+                GROUP BY stat_kind, path
+            ) e2
+            ON e1.id = e2.id
+        ")
+            .bind::<Text, _>(&name)
+            .bind::<FileKindMapping, _>(&file_kind)
+            .load(&*conn)
             .map_err(|err| handle_db_error(&worker.logger, err))?;
+
         JsonResult::Ok(json!({
             "name": name,
             "stats": entries,

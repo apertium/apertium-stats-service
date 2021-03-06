@@ -51,7 +51,8 @@ pub enum StatKind {
     VanillaStems,
 }
 
-#[derive(Queryable, Serialize)]
+#[derive(QueryableByName, Queryable, Serialize)]
+#[table_name = "entries"]
 pub struct Entry {
     #[serde(skip_serializing)]
     pub id: i32,
