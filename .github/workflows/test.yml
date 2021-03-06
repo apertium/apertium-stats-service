@@ -23,14 +23,11 @@ jobs:
     - name: Install other language tools
       run: sudo apt-get install cg3 lexd
 
-    - uses: actions-rs/install@v0.1
+    - name: Install diesel_cli
+      uses: actions-rs/install@v0.1
       with:
         crate: diesel_cli
         version: '1.4.1'
-    - uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-tarpaulin
-        version: '0.16.0'
 
     - name: Check formatting
       uses: actions-rs/cargo@v1
@@ -44,4 +41,9 @@ jobs:
         command: clippy
         args: --all-targets --all-features -- -D warnings
     # TODO: Run tests
-    # TODO: Run coverage
+
+    - name: Run cargo-tarpaulin
+      uses: actions-rs/tarpaulin@v0.1
+      with:
+        version: '0.16.0'
+    # TODO: Upload results
