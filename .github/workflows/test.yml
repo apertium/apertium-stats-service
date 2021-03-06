@@ -34,11 +34,10 @@ jobs:
       with:
         command: fmt
         args: -- --check
-    # TODO: Switch to using https://github.com/actions-rs/clippy-check
     - name: Check lints
-      uses: actions-rs/cargo@v1
+      uses: actions-rs/clippy-check@v1
       with:
-        command: clippy
+        token: ${{ secrets.GITHUB_TOKEN }}
         args: --all-targets --all-features -- -D warnings
     # TODO: Run tests
 
@@ -46,4 +45,6 @@ jobs:
       uses: actions-rs/tarpaulin@v0.1
       with:
         version: '0.16.0'
+      env:
+        GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     # TODO: Upload results
