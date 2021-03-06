@@ -5,10 +5,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  build:
+  test:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
+
+    # TODO: Add cargo caching
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -21,13 +23,20 @@ jobs:
     - name: Install other language tools
       run: sudo apt-get install cg3 lexd
 
-    # TODO: Install diesel_cli & cargo-tarpaulin
+    - uses: actions-rs/install@v0.1
+      with:
+        crate: diesel_cli
+        version: '1.4.1'
+    - uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-tarpaulin
+        version: '0.16.0'
 
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
         command: fmt
-        args: --check
+        args: -- --check
     # TODO: Switch to using https://github.com/actions-rs/clippy-check
     - name: Check lints
       uses: actions-rs/cargo@v1
