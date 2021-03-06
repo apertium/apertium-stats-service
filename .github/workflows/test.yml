@@ -10,14 +10,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    # TODO: Add cargo caching
-
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly-2021-03-04
         override: true
         components: rustfmt, clippy
+    - uses: Swatinem/rust-cache@v1
+
     - name: Install apertium-all-dev
       run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
     - name: Install other language tools
