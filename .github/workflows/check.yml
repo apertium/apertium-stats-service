@@ -43,7 +43,6 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           override: true
-          components: rustfmt, clippy
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v1
 
@@ -75,7 +74,6 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           override: true
-          components: rustfmt, clippy
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v1
 
