@@ -224,6 +224,35 @@ fn pair_specific_stats() {
 }
 
 #[test]
+fn lexd_module_stats() {
+    let module = "apertium-swa";
+
+    run_test!(|client| {
+        let response = client.get(format!("/{}/lexd?async=false", module)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = parse_response(response);
+        let in_progress = body["in_progress"].as_array().expect("valid in_progress");
+        assert_eq!(in_progress.len(), 0);
+
+        assert_eq!(body["name"], module);
+        let stats = body["stats"].as_array().expect("valid stats");
+        assert_eq!(stats.len(), 4);
+
+        assert!(
+            stats
+                .iter()
+                .map(|entry| (
+                    entry["stat_kind"].as_str().expect("kind is string"),
+                    entry["value"].as_i64().expect("value is i64")
+                ))
+                .all(|(_, value)| value > 0),
+            "{}",
+            body["stats"].to_string(),
+        );
+    });
+}
+
+#[test]
 fn module_specific_stats() {
     let kinds = [("monodix", 2), ("rlx", 1), ("postdix", 1)];
 
