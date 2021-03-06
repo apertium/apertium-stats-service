@@ -152,6 +152,7 @@ fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(S
         let without_comments_line = CLEAN_COMMENTS_RE.replace(&unescaped_line, "");
         let clean_line = without_comments_line.trim();
 
+        #[allow(clippy::suspicious_operation_groupings)]
         if clean_line.starts_with("LEXICON") {
             let lexicon_name = clean_line
                 .split_whitespace()
