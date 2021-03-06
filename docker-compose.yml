@@ -1,0 +1,10 @@
+version: '3.7'
+services:
+  stats-service:
+    build: .
+    ports:
+      - '5858:8000'
+    volumes:
+      - type: bind
+        source: ./db.sqlite
+        target: /src/db.sqlite

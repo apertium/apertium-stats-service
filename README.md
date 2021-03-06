@@ -26,6 +26,10 @@ provided `Dockerfile`:
     docker build -t apertium-stats-service .
     docker run -t -p 8000:8000 apertium-stats-service # or 80 for staging/prod
 
+To persist data across restarts, use `docker-compose.yml` instead:
+
+    docker-compose up --build
+
 Development
 -----------
 
