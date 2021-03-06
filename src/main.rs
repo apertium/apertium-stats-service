@@ -63,8 +63,7 @@ use std::{
 };
 
 use chrono::Utc;
-use diesel::{sql_query, prelude::*};
-use diesel::sql_types::Text;
+use diesel::{prelude::*, sql_query, sql_types::Text};
 use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
@@ -290,20 +289,22 @@ fn get_stats(name: String, params: Form<Option<Params>>, conn: DbConn, worker: S
         }
     } else {
         // Diesel doesn't support self JOINs or GROUP BY :(
-        let entries: Vec<models::Entry> = sql_query("
-            SELECT *
-            FROM entries e1
-            JOIN (
-                SELECT id, MAX(created)
-                FROM entries
-                WHERE name = ?
-                GROUP BY stat_kind, path
-            ) e2
-            ON e1.id = e2.id
-        ")
-            .bind::<Text, _>(&name)
-            .load(&*conn)
-            .map_err(|err| handle_db_error(&worker.logger, err))?;
+        let entries: Vec<models::Entry> = sql_query(
+            "
+                SELECT *
+                FROM entries e1
+                JOIN (
+                    SELECT id, MAX(created)
+                    FROM entries
+                    WHERE name = ?
+                    GROUP BY stat_kind, path
+                ) e2
+                ON e1.id = e2.id
+            ",
+        )
+        .bind::<Text, _>(&name)
+        .load(&*conn)
+        .map_err(|err| handle_db_error(&worker.logger, err))?;
 
         JsonResult::Ok(json!({
             "name": name,
@@ -349,21 +350,23 @@ fn get_specific_stats(
         launch_tasks_and_reply(&worker, name, Some(&file_kind), params.into_inner().unwrap_or_default())
     } else {
         // Diesel doesn't support self JOINs or GROUP BY :(
-        let entries: Vec<models::Entry> = sql_query("
-            SELECT *
-            FROM entries e1
-            JOIN (
-                SELECT id, MAX(created)
-                FROM entries
-                WHERE name = ? AND file_kind = ?
-                GROUP BY stat_kind, path
-            ) e2
-            ON e1.id = e2.id
-        ")
-            .bind::<Text, _>(&name)
-            .bind::<FileKindMapping, _>(&file_kind)
-            .load(&*conn)
-            .map_err(|err| handle_db_error(&worker.logger, err))?;
+        let entries: Vec<models::Entry> = sql_query(
+            "
+                SELECT *
+                FROM entries e1
+                JOIN (
+                    SELECT id, MAX(created)
+                    FROM entries
+                    WHERE name = ? AND file_kind = ?
+                    GROUP BY stat_kind, path
+                ) e2
+                ON e1.id = e2.id
+            ",
+        )
+        .bind::<Text, _>(&name)
+        .bind::<FileKindMapping, _>(&file_kind)
+        .load(&*conn)
+        .map_err(|err| handle_db_error(&worker.logger, err))?;
 
         JsonResult::Ok(json!({
             "name": name,
