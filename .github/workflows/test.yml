@@ -41,15 +41,15 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         args: --all-targets --all-features -- -D warnings
-    # - name: Run tests
-    #   uses: actions-rs/cargo@v1
-    #   with:
-    #     command: test
+    - name: Run tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
 
-    # - name: Run cargo-tarpaulin
-    #   uses: actions-rs/tarpaulin@v0.1
-    #   with:
-    #     version: '0.16.0'
-    #   env:
-    #     GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Run cargo-tarpaulin
+      uses: actions-rs/tarpaulin@v0.1
+      with:
+        version: '0.16.0'
+      env:
+        GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     # TODO: Upload results
