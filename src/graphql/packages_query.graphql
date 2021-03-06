@@ -1,4 +1,4 @@
-query Repos($after: String) {
+query PackagesQuery($after: String) {
   organization(login: "apertium") {
     repositories(first: 100, after: $after) {
       edges {

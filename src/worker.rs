@@ -34,7 +34,7 @@ type GitObjectID = String;
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "src/graphql/schema.json",
-    query_path = "src/graphql/repos.graphql",
+    query_path = "src/graphql/packages_query.graphql",
     response_derives = "Clone, Debug"
 )]
 pub struct PackagesQuery;
@@ -277,7 +277,7 @@ fn get_packages(
     logger: &Logger,
     github_auth_token: &str,
     after: Option<&String>,
-) -> Result<(Vec<Package>, Option<String>, packages_query::ReposRateLimit), failure::Error> {
+) -> Result<(Vec<Package>, Option<String>, packages_query::PackagesQueryRateLimit), failure::Error> {
     lazy_static! {
         static ref TOPICS: HashSet<&'static str> = [
             "apertium-languages",
@@ -336,7 +336,7 @@ fn get_packages(
                         .collect()
                 }),
                 last_commit: repo.ref_.and_then(|x| match x.target.on {
-                    packages_query::ReposOrganizationRepositoriesEdgesNodeRefTargetOn::Commit(commit) => commit
+                    packages_query::PackagesQueryOrganizationRepositoriesEdgesNodeRefTargetOn::Commit(commit) => commit
                         .history
                         .edges
                         .and_then(|x| x.first().and_then(|y| y.clone().and_then(|z| z.node)))

@@ -646,6 +646,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+
+[[package]]
 name = "dotenv"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -884,6 +890,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
+name = "graphql-introspection-query"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "610aac641dbd2a457ad4cef34aa2827dae3f035fd214cb38c2d62d8543f3973f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "graphql-parser"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -895,47 +910,44 @@ dependencies = [
 
 [[package]]
 name = "graphql_client"
-version = "0.6.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dab1e7a9ce2e83ebe607f7767dd155c8baf2439a42c289890e21013fdc3fd68"
+checksum = "a0bb4f09181e4f80018d01c612125b07e0156f3753bfac37055fe2a25e031ca8"
 dependencies = [
- "failure",
+ "doc-comment",
  "graphql_query_derive",
- "itertools",
  "serde",
- "serde_derive",
  "serde_json",
 ]
 
 [[package]]
 name = "graphql_client_codegen"
-version = "0.6.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2eb985873e2ec1908e81776fbd2b0047014e9aa26269c2650165d60efce4de83"
+checksum = "8e304c223c809b3bff4614018f8e6d9edb176b31d64ed9ea48b6ae8b1a03abb9"
 dependencies = [
  "failure",
+ "graphql-introspection-query",
  "graphql-parser",
  "heck",
- "itertools",
  "lazy_static",
- "proc-macro2 0.4.30",
- "quote 0.6.13",
+ "proc-macro2 1.0.24",
+ "quote 1.0.9",
  "serde",
- "serde_derive",
  "serde_json",
- "syn 0.15.44",
+ "syn 1.0.61",
 ]
 
 [[package]]
 name = "graphql_query_derive"
-version = "0.6.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7502ae2e277d8a9dc062b1dd7cc7f0f8d57bf6534cdaf637036609c7e54e53b"
+checksum = "e1f6b14d5ce549227aa9e649cd9d36d008b91021275a8e0a67d71cef815adc2f"
 dependencies = [
  "failure",
  "graphql_client_codegen",
- "proc-macro2 0.4.30",
- "syn 0.15.44",
+ "proc-macro2 1.0.24",
+ "syn 1.0.61",
 ]
 
 [[package]]
@@ -1159,15 +1171,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2b3ea6ff95e175473f8ffe6a7eb7c00d054240321b84c57051175fe3c1e075e"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "itertools"
-version = "0.7.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d47946d458e94a1b7bcabbf6521ea7c037062c81f534615abcad76e84d4970d"
-dependencies = [
- "either",
 ]
 
 [[package]]
