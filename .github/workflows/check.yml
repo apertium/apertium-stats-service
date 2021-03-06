@@ -62,6 +62,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   coverage:
     runs-on: ubuntu-20.04
     steps:
