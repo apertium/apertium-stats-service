@@ -88,13 +88,13 @@ jobs:
           crate: diesel_cli
           version: ${{ env.DIESEL_CLI_VERSION }}
 
-      - name: Run tests with coverage
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.16.0'
-        env:
-          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload coverage
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Run tests with coverage
+      #   uses: actions-rs/tarpaulin@v0.1
+      #   with:
+      #     version: '0.16.0'
+      #   env:
+      #     GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Upload coverage
+      #   uses: coverallsapp/github-action@master
+      #   with:
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
