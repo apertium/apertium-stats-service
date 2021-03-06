@@ -44,11 +44,11 @@ macro_rules! run_test_with_github_auth {
             Some(env::var("GITHUB_AUTH_TOKEN").expect("testing requires GITHUB_AUTH_TOKEN environment variable"));
         let guard = GITHUB_AUTH_MUTEX.lock().unwrap();
         if let Err(err) = panic::catch_unwind(|| {
-            let (send, recv) = sync::mpsc::channel();
-            let $client = Client::new(service(db_path.into(), github_auth_token, Some(recv)))
+            let (termination_send, termination_recv) = sync::mpsc::channel();
+            let $client = Client::new(service(db_path.into(), github_auth_token, Some(termination_recv)))
                 .expect("valid rocket instance");
             $block
-            send.send(()).expect("should have a thread to terminate")
+            termination_send.send(()).expect("should have a thread to terminate")
         }) {
             drop(guard);
             panic::resume_unwind(err);
