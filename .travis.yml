@@ -1,6 +1,6 @@
+os: linux
 dist: bionic
 language: rust
-sudo: required
 rust:
   - nightly
 cache: cargo
@@ -17,7 +17,7 @@ script:
   - cargo test --verbose
 after_success:
   - cargo tarpaulin --verbose --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
-matrix:
+jobs:
   include:
     - rust: nightly-2021-03-04
       env:
