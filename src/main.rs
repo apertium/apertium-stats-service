@@ -58,7 +58,7 @@ pub const PACKAGE_UPDATE_MIN_INTERVAL: Duration = Duration::from_secs(10);
 pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
 
 lazy_static! {
-    pub static ref RUNTIME: Runtime = runtime::Builder::new().threaded_scheduler().build().unwrap();
+    pub static ref RUNTIME: Runtime = runtime::Runtime::new().unwrap();
     pub static ref HTTPS_CLIENT: reqwest::Client = reqwest::Client::new();
 }
 
