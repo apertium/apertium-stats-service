@@ -10,7 +10,6 @@ use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
 use failure::Fail;
 use futures::{
-    executor::block_on,
     future::{join_all, Future},
     FutureExt,
 };
@@ -29,7 +28,7 @@ use crate::{
     models::{FileKind, NewEntry},
     schema::entries,
     stats::{get_file_kind, get_file_stats, StatsResults},
-    GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT,
+    GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT, RUNTIME,
 };
 
 type DateTime = chrono::DateTime<Utc>;
@@ -438,7 +437,7 @@ impl Worker {
             "recursive" => recursive,
         ));
 
-        let files_without_shas = block_on(list_files(&logger, name, recursive))?;
+        let files_without_shas = RUNTIME.block_on(list_files(&logger, name, recursive))?;
 
         let mut current_tasks = self.current_tasks.write().unwrap();
         let current_package_tasks = current_tasks.entry(name.to_string());
@@ -482,7 +481,7 @@ impl Worker {
                 .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
                 .collect::<Vec<_>>(),
         );
-        let shas = block_on(sha_futures);
+        let shas = RUNTIME.block_on(sha_futures);
         let revision_sha_mapping = unique_revisions
             .into_iter()
             .zip(shas)

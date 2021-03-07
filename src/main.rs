@@ -29,7 +29,6 @@ use std::{
 use chrono::Utc;
 use diesel::{prelude::*, sql_query, sql_types::Text};
 use dotenv::dotenv;
-use futures::executor::block_on;
 use lazy_static::lazy_static;
 use rocket::{
     get,
@@ -97,7 +96,7 @@ fn launch_tasks_and_reply(
                     Status::Accepted,
                 )
             } else {
-                let results = block_on(future);
+                let results = RUNTIME.block_on(future);
                 let stats = worker.handle_task_completion(&name, &results);
                 JsonResult::Ok(json!({
                     "name": name,
@@ -369,12 +368,12 @@ fn get_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResul
 
 #[post("/packages")]
 fn update_all_packages(worker: State<Arc<Worker>>) -> JsonResult {
-    block_on(update_packages(worker, None))
+    RUNTIME.block_on(update_packages(worker, None))
 }
 
 #[post("/packages/<query>")]
 fn update_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResult {
-    block_on(update_packages(worker, Some(query)))
+    RUNTIME.block_on(update_packages(worker, Some(query)))
 }
 
 fn create_logger() -> Logger {
@@ -442,7 +441,7 @@ pub fn service(
 
     if package_listing_routes_enabled {
         let mut initial_delay = {
-            match block_on(worker.update_packages()) {
+            match RUNTIME.block_on(worker.update_packages()) {
                 Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                 Err(err) => panic!("Failed to initialize package list: {:?}", err),
             }
@@ -458,7 +457,7 @@ pub fn service(
             initial_delay = Duration::from_secs(0);
 
             let next_update = {
-                match block_on(package_update_worker.update_packages()) {
+                match RUNTIME.block_on(package_update_worker.update_packages()) {
                     Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                     Err(err) => {
                         error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
