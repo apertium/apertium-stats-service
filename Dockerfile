@@ -9,13 +9,17 @@ RUN apt-get -qq update && \
         subversion \
         lexd
 
-RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly-2021-03-04
+WORKDIR /src
+
+# Install rust toolchain.
+COPY rust-toolchain ./
+RUN curl -s https://sh.rustup.rs | sh -s -- -y --default-toolchain none
 ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup which cargo
 
 RUN cargo install diesel_cli --version 1.4.1 --no-default-features --features "sqlite"
 
 # Build dependencies.
-WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release && rm -rf src
 
