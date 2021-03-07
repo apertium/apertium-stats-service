@@ -69,7 +69,9 @@ fn launch_tasks_and_reply(
     options: Params,
 ) -> JsonResult {
     match worker.build_tasks(&name, kind, options.is_recursive()) {
-        Ok((ref new_tasks, ref in_progress_tasks)) if new_tasks.is_empty() && in_progress_tasks.is_empty() => {
+        Ok((ref new_tasks, ref in_progress_tasks, ref _future))
+            if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
+        {
             JsonResult::Err(
                 Some(json!({
                     "name": name,
@@ -78,10 +80,7 @@ fn launch_tasks_and_reply(
                 Status::NotFound,
             )
         },
-        Ok((new_tasks, in_progress_tasks)) => {
-            let logger = worker.logger.clone();
-            let future = Worker::launch_tasks(logger, &name, new_tasks);
-
+        Ok((_new_tasks, in_progress_tasks, future)) => {
             if options.is_async() {
                 let future_name = name.clone();
                 let future_worker = (*worker).clone();

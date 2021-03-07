@@ -432,7 +432,7 @@ impl Worker {
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
-    ) -> Result<(Tasks, Tasks), String> {
+    ) -> Result<(Tasks, Tasks, impl Future<Output = Vec<(Task, StatsResults)>>), String> {
         let logger = self.logger.new(o!(
             "package" => name.to_string(),
             "recursive" => recursive,
@@ -526,21 +526,20 @@ impl Worker {
             )
             .collect::<Vec<_>>();
 
-        Worker::record_new_tasks(current_package_tasks, new_tasks)
-    }
+        let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
 
-    pub fn launch_tasks(logger: Logger, name: &str, tasks: Tasks) -> impl Future<Output = Vec<(Task, StatsResults)>> {
-        info!(logger, "Spawning {} task(s): {:?}", tasks.len(), tasks);
-
-        let futures = tasks.into_iter().map(move |task| {
+        let futures = new_tasks.iter().map(|task| {
+            let task = task.clone();
             let logger = logger.new(o!(
                 "path" => task.file.path.clone(),
                 "kind" => task.kind.to_string(),
             ));
             get_file_stats(logger, task.file.path.clone(), name.to_string(), task.kind.clone())
-                .map(|stats| (task, stats))
+                .map(move |stats| (task, stats))
         });
-        join_all(futures)
+        let future = join_all(futures);
+
+        Ok((new_tasks, in_progress_tasks, future))
     }
 
     pub fn handle_task_completion(&self, name: &str, results: &[(Task, StatsResults)]) -> Vec<NewEntry> {
