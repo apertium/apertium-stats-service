@@ -196,6 +196,8 @@ impl From<RocketJsonValue> for JsonValue {
 #[derive(FromForm)]
 pub struct Params {
     pub recursive: Option<bool>,
+
+    #[form(field = "async")]
     pub r#async: Option<bool>,
 }
 
