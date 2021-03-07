@@ -1,4 +1,7 @@
 .dockerignore
-Dockerfile
 .git/
+.github/
+db.sqlite
+docker-compose.yml
+Dockerfile
 target/

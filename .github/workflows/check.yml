@@ -1,0 +1,102 @@
+name: Check
+on: 
+  - push
+  - pull_request
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: nightly-2021-03-04
+  DIESEL_CLI_VERSION: '1.4.1'
+jobs:
+  lint:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+          components: rustfmt, clippy
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check
+      - name: Run cargo clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-targets --all-features -- -D warnings
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install apertium-all-dev
+        run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
+      - name: Install other language tools
+        run: sudo apt-get install cg3 lexd
+
+      - name: Install diesel_cli
+        uses: actions-rs/install@v0.1
+        with:
+          crate: diesel_cli
+          version: ${{ env.DIESEL_CLI_VERSION }}
+
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  coverage:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install apertium-all-dev
+        run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
+      - name: Install other language tools
+        run: sudo apt-get install cg3 lexd
+
+      - name: Install diesel_cli
+        uses: actions-rs/install@v0.1
+        with:
+          crate: diesel_cli
+          version: ${{ env.DIESEL_CLI_VERSION }}
+
+      - name: Run tests with coverage
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.16.0'
+          args: --out Lcov
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload coverage
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ./lcov.info
