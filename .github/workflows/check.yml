@@ -4,7 +4,6 @@ on:
   - pull_request
 env:
   CARGO_TERM_COLOR: always
-  RUST_VERSION: nightly-2021-03-04
   DIESEL_CLI_VERSION: '1.4.1'
 jobs:
   lint:
@@ -16,7 +15,6 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ env.RUST_VERSION }}
           override: true
           components: rustfmt, clippy
       - name: Restore Rust cache
@@ -41,7 +39,6 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ env.RUST_VERSION }}
           override: true
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v1
@@ -72,7 +69,6 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ env.RUST_VERSION }}
           override: true
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v1
