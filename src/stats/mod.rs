@@ -32,12 +32,14 @@ pub enum StatsError {
     Lexc(String),
 }
 
+pub type StatsResults = Result<Vec<(StatKind, JsonValue)>, StatsError>;
+
 pub async fn get_file_stats(
-    logger: &Logger,
+    logger: Logger,
     file_path: String,
-    package_name: &str,
+    package_name: String,
     file_kind: FileKind,
-) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+) -> StatsResults {
     let url = format!("{}/{}/master/{}", ORGANIZATION_RAW_ROOT, package_name, file_path);
     let logger = logger.clone();
 

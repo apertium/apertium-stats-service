@@ -11,7 +11,7 @@ use diesel::{self, RunQueryDsl};
 use failure::Fail;
 use futures::{
     executor::block_on,
-    future::{join_all, BoxFuture},
+    future::{join_all, Future},
     FutureExt,
 };
 use graphql_client::{GraphQLQuery, Response};
@@ -28,7 +28,7 @@ use crate::{
     db::Pool,
     models::{FileKind, NewEntry},
     schema::entries,
-    stats::{get_file_kind, get_file_stats},
+    stats::{get_file_kind, get_file_stats, StatsResults},
     GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT,
 };
 
@@ -427,12 +427,12 @@ impl Worker {
         current_tasks.get(name).cloned()
     }
 
-    pub fn launch_tasks(
+    pub fn build_tasks(
         &self,
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
-    ) -> Result<(Tasks, Tasks, BoxFuture<Vec<NewEntry>>), String> {
+    ) -> Result<(Tasks, Tasks), String> {
         let logger = self.logger.new(o!(
             "package" => name.to_string(),
             "recursive" => recursive,
@@ -451,10 +451,10 @@ impl Worker {
                     let in_progress = match current_package_tasks {
                         Entry::Occupied(ref occupied) => occupied.get().iter().any(
                             |Task {
-                                    kind,
-                                    file: File { path, .. },
-                                    ..
-                                }| { kind == &file_kind && path == &file.path },
+                                 kind,
+                                 file: File { path, .. },
+                                 ..
+                             }| { kind == &file_kind && path == &file.path },
                         ),
                         _ => false,
                     };
@@ -526,18 +526,79 @@ impl Worker {
             )
             .collect::<Vec<_>>();
 
-        info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
-        let future = join_all(
-            new_tasks
-                .iter()
-                .map(|task| self.launch_task(logger.clone(), name.to_owned(), task.clone()))
-                .collect::<Vec<_>>(),
-        )
-        .map(|entries| entries.into_iter().flat_map(|x| x.0.unwrap_or_else(Vec::new)).collect());
+        Worker::record_new_tasks(current_package_tasks, new_tasks)
+    }
 
-        let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
+    pub fn launch_tasks(logger: Logger, name: &str, tasks: Tasks) -> impl Future<Output = Vec<(Task, StatsResults)>> {
+        info!(logger, "Spawning {} task(s): {:?}", tasks.len(), tasks);
 
-        Ok((new_tasks, in_progress_tasks, Box::pin(future)))
+        let futures = tasks.into_iter().map(move |task| {
+            let logger = logger.new(o!(
+                "path" => task.file.path.clone(),
+                "kind" => task.kind.to_string(),
+            ));
+            get_file_stats(logger, task.file.path.clone(), name.to_string(), task.kind.clone())
+                .map(|stats| (task, stats))
+        });
+        join_all(futures)
+    }
+
+    pub fn handle_task_completion(&self, name: &str, results: &[(Task, StatsResults)]) -> Vec<NewEntry> {
+        let current_tasks_guard = self.current_tasks.clone();
+        let pool = self.pool.clone();
+        let logger = self.logger.clone();
+
+        results
+            .iter()
+            .flat_map(|(task, maybe_stats)| {
+                {
+                    let mut current_tasks = current_tasks_guard.write().unwrap();
+                    Worker::record_task_completion(current_tasks.entry(name.to_string()), &task);
+                }
+
+                match maybe_stats {
+                    Ok(stats) => {
+                        debug!(logger, "Completed executing task");
+
+                        let new_entries = stats
+                            .iter()
+                            .map(|(kind, value)| NewEntry {
+                                name: name.to_string(),
+                                created: Utc::now().naive_utc(),
+                                requested: task.created,
+                                path: task.file.path.clone(),
+                                stat_kind: kind.clone(),
+                                file_kind: task.kind.clone(),
+                                value: value.clone().into(),
+                                revision: task.file.revision,
+                                sha: task.file.sha.clone(),
+                                size: task.file.size,
+                                last_author: task.file.last_author.clone(),
+                                last_changed: task.file.last_changed,
+                            })
+                            .collect::<Vec<_>>();
+
+                        match pool.get() {
+                            Ok(conn) => {
+                                diesel::insert_into(entries::table)
+                                    .values(&new_entries)
+                                    .execute(&*conn)
+                                    .unwrap();
+                                new_entries
+                            },
+                            Err(err) => {
+                                error!(logger, "Error persisting task results: {:?}", err);
+                                new_entries
+                            },
+                        }
+                    },
+                    Err(err) => {
+                        error!(logger, "Error executing task: {:?}", err);
+                        vec![]
+                    },
+                }
+            })
+            .collect()
     }
 
     pub async fn update_packages(&self) -> Result<Duration, failure::Error> {
@@ -581,69 +642,6 @@ impl Worker {
         debug!(self.logger, "Next package update in {:?}", next_update);
         *self.packages_next_update.write().unwrap() = Utc::now().naive_utc()
             + chrono::Duration::from_std(next_update).unwrap_or_else(|_| chrono::Duration::zero());
-    }
-
-    async fn launch_task(
-        &self,
-        logger: Logger,
-        package_name: String,
-        task: Task,
-    ) -> (Option<Vec<NewEntry>>, Option<String>) {
-        let current_tasks_guard = self.current_tasks.clone();
-        let pool = self.pool.clone();
-        let logger = logger.new(o!(
-            "path" => task.file.path.clone(),
-            "kind" => task.kind.to_string(),
-        ));
-
-        let maybe_stats = get_file_stats(&logger, task.file.path.clone(), &package_name, task.kind.clone()).await;
-        let mut current_tasks = current_tasks_guard.write().unwrap();
-        Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
-
-        match maybe_stats {
-            Ok(stats) => {
-                debug!(logger, "Completed executing task");
-
-                let new_entries = stats
-                    .into_iter()
-                    .map(|(kind, value)| NewEntry {
-                        name: package_name.clone(),
-                        created: Utc::now().naive_utc(),
-                        requested: task.created,
-                        path: task.file.path.clone(),
-                        stat_kind: kind,
-                        file_kind: task.kind.clone(),
-                        value: value.into(),
-                        revision: task.file.revision,
-                        sha: task.file.sha.clone(),
-                        size: task.file.size,
-                        last_author: task.file.last_author.clone(),
-                        last_changed: task.file.last_changed,
-                    })
-                    .collect::<Vec<_>>();
-
-                match pool.get() {
-                    Ok(conn) => {
-                        diesel::insert_into(entries::table)
-                            .values(&new_entries)
-                            .execute(&*conn)
-                            .unwrap();
-                        (Some(new_entries), None)
-                    },
-                    Err(err) => {
-                        error!(logger, "Error persisting task results: {:?}", err);
-                        (
-                            Some(new_entries),
-                            Some(format!("Error persisting task results: {:?}", err)),
-                        )
-                    },
-                }
-            },
-            Err(err) => {
-                error!(logger, "Error executing task: {:?}", err);
-                (None, Some(format!("Error executing task: {:?}", err)))
-            },
-        }
     }
 
     fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {

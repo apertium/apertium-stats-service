@@ -29,7 +29,7 @@ use std::{
 use chrono::Utc;
 use diesel::{prelude::*, sql_query, sql_types::Text};
 use dotenv::dotenv;
-use futures::{executor::block_on, future::FutureExt};
+use futures::executor::block_on;
 use lazy_static::lazy_static;
 use rocket::{
     get,
@@ -68,10 +68,8 @@ fn launch_tasks_and_reply(
     kind: Option<&FileKind>,
     options: Params,
 ) -> JsonResult {
-    match worker.launch_tasks(&name, kind, options.is_recursive()) {
-        Ok((ref new_tasks, ref in_progress_tasks, ref _future))
-            if new_tasks.is_empty() && in_progress_tasks.is_empty() =>
-        {
+    match worker.build_tasks(&name, kind, options.is_recursive()) {
+        Ok((ref new_tasks, ref in_progress_tasks)) if new_tasks.is_empty() && in_progress_tasks.is_empty() => {
             JsonResult::Err(
                 Some(json!({
                     "name": name,
@@ -80,10 +78,17 @@ fn launch_tasks_and_reply(
                 Status::NotFound,
             )
         },
-        Ok((_new_tasks, in_progress_tasks, future)) => {
+        Ok((new_tasks, in_progress_tasks)) => {
+            let logger = worker.logger.clone();
+            let future = Worker::launch_tasks(logger, &name, new_tasks);
+
             if options.is_async() {
-                let detached_future = future.map(|_| ());
-                RUNTIME.spawn(detached_future);
+                let future_name = name.clone();
+                let future_worker = (*worker).clone();
+                RUNTIME.spawn(async move {
+                    let results = future.await;
+                    future_worker.handle_task_completion(&future_name, &results);
+                });
 
                 JsonResult::Err(
                     Some(json!({
@@ -93,7 +98,8 @@ fn launch_tasks_and_reply(
                     Status::Accepted,
                 )
             } else {
-                let stats = block_on(future);
+                let results = block_on(future);
+                let stats = worker.handle_task_completion(&name, &results);
                 JsonResult::Ok(json!({
                     "name": name,
                     "stats": stats,
