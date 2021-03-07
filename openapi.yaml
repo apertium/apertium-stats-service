@@ -255,6 +255,10 @@ components:
         - Macros
         - Stems
         - VanillaStems
+        - Lexicons
+        - LexiconEntries
+        - Patterns
+        - PatternEntries
     FileKind:
       type: string
       enum:
@@ -267,6 +271,7 @@ components:
         - Transfer
         - Lexc
         - Twol
+        - Lexd
     File:
       type: object
       properties:
