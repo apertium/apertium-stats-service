@@ -15,8 +15,6 @@ dotenv = "0.11.0"
 failure = "0.1.4"
 futures = "0.3.0"
 graphql_client = "0.9.0"
-hyper = "0.12.14"
-hyper-tls = "0.3.0"
 lazy_static = "1.2.0"
 quick-xml = "0.12.1"
 regex = "1.0.0"
@@ -32,8 +30,7 @@ slog-async = "2.3.0"
 slog-envlogger = "2.1.0"
 slog-term = "2.4.0"
 tempfile = "3.0.1"
-tokio = "0.1.11"
-tokio-process = "0.2.3"
+tokio = { version = "0.2.0", features = ["process", "rt-threaded"] }
 
 [dev-dependencies]
 diesel_cli = { version = "1.4.1", default-features = false, features = ["sqlite"] }

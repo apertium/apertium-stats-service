@@ -1,6 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
-    process::{Command, Output},
+    process::Output,
     str,
     sync::{Arc, Mutex, RwLock},
     time::Duration,
@@ -9,7 +9,11 @@ use std::{
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
 use failure::Fail;
-use futures::FutureExt;
+use futures::{
+    executor::block_on,
+    future::{join_all, BoxFuture},
+    FutureExt,
+};
 use graphql_client::{GraphQLQuery, Response};
 use lazy_static::lazy_static;
 use quick_xml::{
@@ -18,11 +22,7 @@ use quick_xml::{
 };
 use serde_derive::Serialize;
 use slog::{debug, error, info, o, trace, warn, Logger};
-use tokio::{
-    executor::current_thread::CurrentThread,
-    prelude::{future::join_all, Future},
-};
-use tokio_process::CommandExt;
+use tokio::process::Command;
 
 use crate::{
     db::Pool,
@@ -99,7 +99,7 @@ enum PackageUpdateError {
     MissingData(String),
 }
 
-fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Item = Option<String>, Error = ()> {
+async fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> Option<String> {
     let sha_future = Command::new("svn")
         .arg("propget")
         .arg("git-commit")
@@ -107,27 +107,27 @@ fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> impl Future<Ite
         .arg("-r")
         .arg(revision.to_string())
         .arg(svn_path)
-        .output_async();
+        .output();
 
-    sha_future.then(move |sha| match sha {
+    match sha_future.await {
         Ok(Output { status, ref stdout, .. }) if status.success() => {
             let sha = String::from_utf8_lossy(stdout).into_owned().as_str().trim().to_string();
-            Ok(Some(sha))
+            Some(sha)
         },
         Ok(Output { stderr, .. }) => {
             let err = String::from_utf8_lossy(&stderr);
             error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
-            Ok(None)
+            None
         },
         Err(err) => {
             error!(logger, "Error getting SHA corresponding to revision: {:?}", err; "revision" => revision);
-            Ok(None)
+            None
         },
-    })
+    }
 }
 
 #[allow(clippy::cognitive_complexity)]
-fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Vec<FileWithoutSha>, String> {
+async fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Vec<FileWithoutSha>, String> {
     fn decode_utf8<'a>(bytes: &'a [u8], reader: &Reader<&[u8]>) -> Result<&'a str, String> {
         str::from_utf8(bytes).map_err(|err| {
             format!(
@@ -152,7 +152,7 @@ fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Ve
         .arg(&svn_path)
         .output();
 
-    match output {
+    match output.await {
         Ok(Output { status, ref stdout, .. }) if status.success() => {
             let xml = String::from_utf8_lossy(stdout);
             let mut reader = Reader::from_str(&xml);
@@ -432,118 +432,112 @@ impl Worker {
         name: &str,
         maybe_kind: Option<&FileKind>,
         recursive: bool,
-    ) -> Result<(Tasks, Tasks, impl Future<Item = Vec<NewEntry>>), String> {
+    ) -> Result<(Tasks, Tasks, BoxFuture<Vec<NewEntry>>), String> {
         let logger = self.logger.new(o!(
             "package" => name.to_string(),
             "recursive" => recursive,
         ));
 
-        list_files(&logger, name, recursive).and_then(|files_without_shas| {
-            let mut current_tasks = self.current_tasks.write().unwrap();
-            let current_package_tasks = current_tasks.entry(name.to_string());
+        let files_without_shas = block_on(list_files(&logger, name, recursive))?;
 
-            let requested_files = files_without_shas
-                .into_iter()
-                .filter_map(|file| {
-                    get_file_kind(&file.path).and_then(|file_kind| {
-                        let requested_kind = maybe_kind.map_or(true, |kind| kind == &file_kind);
-                        let in_progress = match current_package_tasks {
-                            Entry::Occupied(ref occupied) => occupied.get().iter().any(
-                                |Task {
-                                     kind,
-                                     file: File { path, .. },
-                                     ..
-                                 }| { kind == &file_kind && path == &file.path },
-                            ),
-                            _ => false,
-                        };
-                        if requested_kind && !in_progress {
-                            Some((file_kind, file))
-                        } else {
-                            None
-                        }
-                    })
+        let mut current_tasks = self.current_tasks.write().unwrap();
+        let current_package_tasks = current_tasks.entry(name.to_string());
+
+        let requested_files = files_without_shas
+            .into_iter()
+            .filter_map(|file| {
+                get_file_kind(&file.path).and_then(|file_kind| {
+                    let requested_kind = maybe_kind.map_or(true, |kind| kind == &file_kind);
+                    let in_progress = match current_package_tasks {
+                        Entry::Occupied(ref occupied) => occupied.get().iter().any(
+                            |Task {
+                                    kind,
+                                    file: File { path, .. },
+                                    ..
+                                }| { kind == &file_kind && path == &file.path },
+                        ),
+                        _ => false,
+                    };
+                    if requested_kind && !in_progress {
+                        Some((file_kind, file))
+                    } else {
+                        None
+                    }
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
-            let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
-            let mut unique_revisions = requested_files
+        let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, name);
+        let mut unique_revisions = requested_files
+            .iter()
+            .map(|(_, FileWithoutSha { revision, .. })| *revision)
+            .collect::<Vec<_>>();
+        unique_revisions.sort_unstable();
+        unique_revisions.dedup();
+        debug!(logger, "Found {} unique revisions", unique_revisions.len());
+
+        let sha_futures = join_all(
+            unique_revisions
                 .iter()
-                .map(|(_, FileWithoutSha { revision, .. })| *revision)
-                .collect::<Vec<_>>();
-            unique_revisions.sort_unstable();
-            unique_revisions.dedup();
-            debug!(logger, "Found {} unique revisions", unique_revisions.len());
+                .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
+                .collect::<Vec<_>>(),
+        );
+        let shas = block_on(sha_futures);
+        let revision_sha_mapping = unique_revisions
+            .into_iter()
+            .zip(shas)
+            .collect::<HashMap<i32, Option<String>>>();
+        debug!(
+            logger,
+            "Fetched Git SHAs for {} unique revisions",
+            revision_sha_mapping.len()
+        );
 
-            let sha_futures = join_all(
-                unique_revisions
-                    .iter()
-                    .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
-                    .collect::<Vec<_>>(),
-            );
-            let new_tasks = match CurrentThread::new().block_on(sha_futures) {
-                Ok(shas) => {
-                    let revision_sha_mapping = unique_revisions
-                        .into_iter()
-                        .zip(shas)
-                        .collect::<HashMap<i32, Option<String>>>();
-                    debug!(
-                        logger,
-                        "Fetched Git SHAs for {} unique revisions",
-                        revision_sha_mapping.len()
-                    );
-
-                    let tasks = requested_files
-                        .into_iter()
-                        .filter_map(
-                            |(file_kind, FileWithoutSha {
-                                path,
-                                size,
-                                revision,
-                                last_author,
-                                last_changed,
-                            })| match revision_sha_mapping.get(&revision) {
-                                Some(Some(sha)) => Some(Task {
-                                    kind: file_kind,
-                                    file: File {
-                                        path,
-                                        size,
-                                        revision,
-                                        last_author,
-                                        last_changed,
-                                        sha: sha.to_string(),
-                                    },
-                                    created: Utc::now().naive_utc(),
-                                }),
-                                _ => {
-                                    error!(logger, "Missing SHA corresponding to file"; "path" => path, "revision" => revision);
-                                    None
-                                },
-                            },
-                        )
-                        .collect::<Vec<_>>();
-                    Ok(tasks)
+        let new_tasks = requested_files
+            .into_iter()
+            .filter_map(
+                |(
+                    file_kind,
+                    FileWithoutSha {
+                        path,
+                        size,
+                        revision,
+                        last_author,
+                        last_changed,
+                    },
+                )| match revision_sha_mapping.get(&revision) {
+                    Some(Some(sha)) => Some(Task {
+                        kind: file_kind,
+                        file: File {
+                            path,
+                            size,
+                            revision,
+                            last_author,
+                            last_changed,
+                            sha: sha.to_string(),
+                        },
+                        created: Utc::now().naive_utc(),
+                    }),
+                    _ => {
+                        error!(logger, "Missing SHA corresponding to file"; "path" => path, "revision" => revision);
+                        None
+                    },
                 },
-                Err(err) => Err(format!("Unable to fetch Git SHAs: {}", err)),
-            }?;
-
-            info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
-            let future = join_all(
-                new_tasks
-                    .iter()
-                    .map(|task| self.launch_task(&logger, name, task))
-                    .collect::<Vec<_>>(),
             )
-            .map(|entries| {
-                entries
-                    .into_iter()
-                    .flat_map(|x| x.0.unwrap_or_else(Vec::new))
-                    .collect()
-            });
-            let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
+            .collect::<Vec<_>>();
 
-            Ok((new_tasks, in_progress_tasks, future))
-        })
+        info!(logger, "Spawning {} task(s): {:?}", new_tasks.len(), new_tasks);
+        let future = join_all(
+            new_tasks
+                .iter()
+                .map(|task| self.launch_task(logger.clone(), name.to_owned(), task.clone()))
+                .collect::<Vec<_>>(),
+        )
+        .map(|entries| entries.into_iter().flat_map(|x| x.0.unwrap_or_else(Vec::new)).collect());
+
+        let (new_tasks, in_progress_tasks) = Worker::record_new_tasks(current_package_tasks, new_tasks)?;
+
+        Ok((new_tasks, in_progress_tasks, Box::pin(future)))
     }
 
     pub async fn update_packages(&self) -> Result<Duration, failure::Error> {
@@ -589,70 +583,67 @@ impl Worker {
             + chrono::Duration::from_std(next_update).unwrap_or_else(|_| chrono::Duration::zero());
     }
 
-    fn launch_task(
+    async fn launch_task(
         &self,
-        logger: &Logger,
-        package_name: &str,
-        task: &Task,
-    ) -> impl Future<Item = (Option<Vec<NewEntry>>, Option<String>), Error = ()> {
+        logger: Logger,
+        package_name: String,
+        task: Task,
+    ) -> (Option<Vec<NewEntry>>, Option<String>) {
         let current_tasks_guard = self.current_tasks.clone();
         let pool = self.pool.clone();
-        let task = task.clone();
-        let package_name = package_name.to_string();
         let logger = logger.new(o!(
             "path" => task.file.path.clone(),
             "kind" => task.kind.to_string(),
         ));
 
-        get_file_stats(&logger, task.file.path.clone(), &package_name, task.kind.clone()).then(move |maybe_stats| {
-            let mut current_tasks = current_tasks_guard.write().unwrap();
-            Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
+        let maybe_stats = get_file_stats(&logger, task.file.path.clone(), &package_name, task.kind.clone()).await;
+        let mut current_tasks = current_tasks_guard.write().unwrap();
+        Worker::record_task_completion(current_tasks.entry(package_name.clone()), &task);
 
-            match maybe_stats {
-                Ok(stats) => {
-                    debug!(logger, "Completed executing task");
+        match maybe_stats {
+            Ok(stats) => {
+                debug!(logger, "Completed executing task");
 
-                    let new_entries = stats
-                        .into_iter()
-                        .map(|(kind, value)| NewEntry {
-                            name: package_name.clone(),
-                            created: Utc::now().naive_utc(),
-                            requested: task.created,
-                            path: task.file.path.clone(),
-                            stat_kind: kind,
-                            file_kind: task.kind.clone(),
-                            value: value.into(),
-                            revision: task.file.revision,
-                            sha: task.file.sha.clone(),
-                            size: task.file.size,
-                            last_author: task.file.last_author.clone(),
-                            last_changed: task.file.last_changed,
-                        })
-                        .collect::<Vec<_>>();
+                let new_entries = stats
+                    .into_iter()
+                    .map(|(kind, value)| NewEntry {
+                        name: package_name.clone(),
+                        created: Utc::now().naive_utc(),
+                        requested: task.created,
+                        path: task.file.path.clone(),
+                        stat_kind: kind,
+                        file_kind: task.kind.clone(),
+                        value: value.into(),
+                        revision: task.file.revision,
+                        sha: task.file.sha.clone(),
+                        size: task.file.size,
+                        last_author: task.file.last_author.clone(),
+                        last_changed: task.file.last_changed,
+                    })
+                    .collect::<Vec<_>>();
 
-                    match pool.get() {
-                        Ok(conn) => {
-                            diesel::insert_into(entries::table)
-                                .values(&new_entries)
-                                .execute(&*conn)
-                                .unwrap();
-                            Ok((Some(new_entries), None))
-                        },
-                        Err(err) => {
-                            error!(logger, "Error persisting task results: {:?}", err);
-                            Ok((
-                                Some(new_entries),
-                                Some(format!("Error persisting task results: {:?}", err)),
-                            ))
-                        },
-                    }
-                },
-                Err(err) => {
-                    error!(logger, "Error executing task: {:?}", err);
-                    Ok((None, Some(format!("Error executing task: {:?}", err))))
-                },
-            }
-        })
+                match pool.get() {
+                    Ok(conn) => {
+                        diesel::insert_into(entries::table)
+                            .values(&new_entries)
+                            .execute(&*conn)
+                            .unwrap();
+                        (Some(new_entries), None)
+                    },
+                    Err(err) => {
+                        error!(logger, "Error persisting task results: {:?}", err);
+                        (
+                            Some(new_entries),
+                            Some(format!("Error persisting task results: {:?}", err)),
+                        )
+                    },
+                }
+            },
+            Err(err) => {
+                error!(logger, "Error executing task: {:?}", err);
+                (None, Some(format!("Error executing task: {:?}", err)))
+            },
+        }
     }
 
     fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {

@@ -8,7 +8,7 @@ use rocket_contrib::{json, json::JsonValue};
 
 use crate::{models::StatKind, stats::StatsError};
 
-pub fn get_bidix_stats(body: String, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+pub fn get_bidix_stats(body: &str, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let mut reader = Reader::from_str(&body);
     let mut buf = Vec::new();
 
@@ -37,7 +37,7 @@ pub fn get_bidix_stats(body: String, file_path: &str) -> Result<Vec<(StatKind, J
     Ok(vec![(StatKind::Entries, json!(e_count))])
 }
 
-pub fn get_monodix_stats(body: String, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+pub fn get_monodix_stats(body: &str, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let mut reader = Reader::from_str(&body);
     let mut buf = Vec::new();
 
@@ -80,7 +80,7 @@ pub fn get_monodix_stats(body: String, file_path: &str) -> Result<Vec<(StatKind,
     ])
 }
 
-pub fn get_transfer_stats(body: String, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+pub fn get_transfer_stats(body: &str, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let mut reader = Reader::from_str(&body);
     let mut buf = Vec::new();
 

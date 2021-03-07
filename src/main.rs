@@ -29,7 +29,7 @@ use std::{
 use chrono::Utc;
 use diesel::{prelude::*, sql_query, sql_types::Text};
 use dotenv::dotenv;
-use futures::executor::block_on;
+use futures::{executor::block_on, future::FutureExt};
 use lazy_static::lazy_static;
 use rocket::{
     get,
@@ -42,7 +42,7 @@ use rocket::{
 use rocket_contrib::{json, json::JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use slog::{debug, error, info, o, Drain, Logger};
-use tokio::{executor::current_thread::CurrentThread, prelude::Future, runtime::Runtime};
+use tokio::runtime::{self, Runtime};
 
 use db::DbConn;
 use models::{FileKind, FileKindMapping};
@@ -58,7 +58,7 @@ pub const PACKAGE_UPDATE_MIN_INTERVAL: Duration = Duration::from_secs(10);
 pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
 
 lazy_static! {
-    pub static ref RUNTIME: Runtime = Runtime::new().unwrap();
+    pub static ref RUNTIME: Runtime = runtime::Builder::new().threaded_scheduler().build().unwrap();
     pub static ref HTTPS_CLIENT: reqwest::Client = reqwest::Client::new();
 }
 
@@ -82,8 +82,8 @@ fn launch_tasks_and_reply(
         },
         Ok((_new_tasks, in_progress_tasks, future)) => {
             if options.is_async() {
-                let detached_future = future.map(|_| ()).map_err(|_| ());
-                RUNTIME.executor().spawn(detached_future);
+                let detached_future = future.map(|_| ());
+                RUNTIME.spawn(detached_future);
 
                 JsonResult::Err(
                     Some(json!({
@@ -93,17 +93,12 @@ fn launch_tasks_and_reply(
                     Status::Accepted,
                 )
             } else {
-                match CurrentThread::new().block_on(future) {
-                    Ok(stats) => JsonResult::Ok(json!({
-                        "name": name,
-                        "stats": stats,
-                        "in_progress": vec![] as Vec<Task>,
-                    })),
-                    Err(_err) => {
-                        error!(worker.logger, "Failed to run tasks to completion"; "name" => name);
-                        JsonResult::Err(None, Status::InternalServerError)
-                    },
-                }
+                let stats = block_on(future);
+                JsonResult::Ok(json!({
+                    "name": name,
+                    "stats": stats,
+                    "in_progress": vec![] as Vec<Task>,
+                }))
             }
         },
         Err(error) => JsonResult::Err(

@@ -145,7 +145,8 @@ fn get_stems(logger: &Logger, lines: &Lines, vanilla_only: bool) -> Result<(Stat
         static ref CLEAN_COMMENTS_RE: Regex = Regex::new(r"!.*$").unwrap();
     }
 
-    for (line_number, line) in lines.enumerate() {
+    // TODO: Should be possible to get rid of this clone.
+    for (line_number, line) in lines.clone().enumerate() {
         let vanilla = !line.contains("Use/MT");
         let unescaped_line = ESCAPE_RE.replace_all(&line, r"\1");
         let without_comments_line = CLEAN_COMMENTS_RE.replace(&unescaped_line, "");
@@ -187,7 +188,7 @@ fn get_stems(logger: &Logger, lines: &Lines, vanilla_only: bool) -> Result<(Stat
     }
 }
 
-pub fn get_stats(logger: &Logger, body: String) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+pub fn get_stats(logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let lines = body.lines();
 
     Ok(vec![

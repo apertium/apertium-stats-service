@@ -23,7 +23,6 @@ use crate::{
 
 #[derive(Debug)]
 pub enum StatsError {
-    Hyper(hyper::Error),
     Reqwest(ReqwestError),
     Utf8(Utf8Error),
     Io(io::Error),
@@ -54,9 +53,9 @@ pub async fn get_file_stats(
         .map_err(StatsError::Reqwest)?;
 
     match file_kind {
-        FileKind::Monodix | FileKind::MetaMonodix => self::xml::get_monodix_stats(body, &file_path),
-        FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => self::xml::get_bidix_stats(body, &file_path),
-        FileKind::Transfer => self::xml::get_transfer_stats(body, &file_path),
+        FileKind::Monodix | FileKind::MetaMonodix => self::xml::get_monodix_stats(&body, &file_path),
+        FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => self::xml::get_bidix_stats(&body, &file_path),
+        FileKind::Transfer => self::xml::get_transfer_stats(&body, &file_path),
         FileKind::Rlx => {
             let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
             rlx_file.write_all(body.as_bytes()).map_err(StatsError::Io)?;
@@ -96,7 +95,7 @@ pub async fn get_file_stats(
             let rule_count = body.lines().filter(|line| line.starts_with('"')).count();
             Ok(vec![(StatKind::Rules, json!(rule_count))])
         },
-        FileKind::Lexc => self::lexc::get_stats(&logger, body),
+        FileKind::Lexc => self::lexc::get_stats(&logger, &body),
         FileKind::Lexd => {
             let mut lexd_file = tempfile().map_err(StatsError::Io)?;
             lexd_file.write_all(body.as_bytes()).map_err(StatsError::Io)?;
