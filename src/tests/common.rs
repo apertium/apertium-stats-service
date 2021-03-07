@@ -8,7 +8,7 @@ lazy_static! {
     pub static ref GITHUB_AUTH_MUTEX: Mutex<()> = Mutex::new(());
 }
 
-pub fn setup_database() -> Box<tempfile::NamedTempFile> {
+pub fn setup_database() -> tempfile::NamedTempFile {
     let db_file = NamedTempFile::new().expect("valid database file");
     {
         let db_path = db_file.path().to_str().expect("valid database path");
@@ -20,7 +20,7 @@ pub fn setup_database() -> Box<tempfile::NamedTempFile> {
             .expect("successful database setup");
     }
 
-    Box::new(db_file)
+    db_file
 }
 
 macro_rules! run_test {
