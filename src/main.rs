@@ -58,7 +58,10 @@ pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
 
 lazy_static! {
     pub static ref RUNTIME: Runtime = runtime::Runtime::new().unwrap();
-    pub static ref HTTPS_CLIENT: reqwest::Client = reqwest::Client::new();
+    pub static ref HTTPS_CLIENT: reqwest::Client = reqwest::Client::builder()
+        .user_agent("apertium-stats-service")
+        .build()
+        .unwrap();
 }
 
 fn launch_tasks_and_reply(
