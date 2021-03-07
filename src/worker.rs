@@ -9,6 +9,7 @@ use std::{
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
 use failure::Fail;
+use futures::FutureExt;
 use graphql_client::{GraphQLQuery, Response};
 use lazy_static::lazy_static;
 use quick_xml::{
