@@ -276,7 +276,7 @@ fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Result<Ve
     }
 }
 
-fn get_packages(
+async fn get_packages(
     logger: &Logger,
     github_auth_token: &str,
     after: Option<&String>,
@@ -301,9 +301,11 @@ fn get_packages(
         .post(GITHUB_GRAPHQL_API_ENDPOINT)
         .bearer_auth(github_auth_token)
         .json(&query)
-        .send()?
+        .send()
+        .await?
         .error_for_status()?
-        .json()?;
+        .json()
+        .await?;
 
     if let Some(errors) = response.errors {
         for err in &errors {
@@ -543,7 +545,7 @@ impl Worker {
         })
     }
 
-    pub fn update_packages(&self) -> Result<Duration, failure::Error> {
+    pub async fn update_packages(&self) -> Result<Duration, failure::Error> {
         let _guard = self.packages_update_mutex.lock().unwrap();
         let github_auth_token = self
             .github_auth_token
@@ -552,12 +554,13 @@ impl Worker {
             .as_str();
         let mut packages = Vec::new();
 
-        let (mut new_packages, mut after, mut rate_limits) = get_packages(&self.logger, github_auth_token, None)?;
+        let (mut new_packages, mut after, mut rate_limits) =
+            get_packages(&self.logger, github_auth_token, None).await?;
         let mut total_cost = rate_limits.cost;
         packages.append(&mut new_packages);
         while after.is_some() {
             let (mut new_packages, new_after, new_rate_limits) =
-                get_packages(&self.logger, github_auth_token, after.as_ref())?;
+                get_packages(&self.logger, github_auth_token, after.as_ref()).await?;
             after = new_after;
             rate_limits = new_rate_limits;
             total_cost += rate_limits.cost;

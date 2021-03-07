@@ -40,6 +40,7 @@ use rocket::{
     response::Content,
     routes, State,
 };
+use futures::executor::block_on;
 use rocket_contrib::{json, json::JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use slog::{debug, error, info, o, Drain, Logger};
@@ -166,8 +167,8 @@ fn get_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult
     }))
 }
 
-fn update_packages(worker: State<Arc<Worker>>, query: Option<String>) -> JsonResult {
-    if let Err(err) = worker.update_packages() {
+async fn update_packages(worker: State<'_, Arc<Worker>>, query: Option<String>) -> JsonResult {
+    if let Err(err) = worker.update_packages().await {
         error!(worker.logger, "Failed to update packages: {:?}", err);
         return JsonResult::Err(
             Some(json!({
@@ -373,12 +374,12 @@ fn get_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResul
 
 #[post("/packages")]
 fn update_all_packages(worker: State<Arc<Worker>>) -> JsonResult {
-    update_packages(worker, None)
+    block_on(update_packages(worker, None))
 }
 
 #[post("/packages/<query>")]
 fn update_specific_packages(worker: State<Arc<Worker>>, query: String) -> JsonResult {
-    update_packages(worker, Some(query))
+    block_on(update_packages(worker, Some(query)))
 }
 
 fn create_logger() -> Logger {
@@ -446,7 +447,7 @@ pub fn service(
 
     if package_listing_routes_enabled {
         let mut initial_delay = {
-            match worker.update_packages() {
+            match block_on(worker.update_packages()) {
                 Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                 Err(err) => panic!("Failed to initialize package list: {:?}", err),
             }
@@ -462,7 +463,7 @@ pub fn service(
             initial_delay = Duration::from_secs(0);
 
             let next_update = {
-                match package_update_worker.update_packages() {
+                match block_on(package_update_worker.update_packages()) {
                     Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                     Err(err) => {
                         error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
