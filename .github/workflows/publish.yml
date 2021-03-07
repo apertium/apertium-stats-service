@@ -26,9 +26,16 @@ jobs:
           command: build
           args: --release
       
+      - name: Tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v5.2
+        with:
+          custom_tag: ${{ github.sha }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: target/release/apertium-stats-service
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
