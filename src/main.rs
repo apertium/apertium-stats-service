@@ -13,38 +13,8 @@ mod worker;
 #[macro_use]
 mod tests;
 
-extern crate chrono;
-#[macro_use]
-extern crate failure;
-extern crate slog_envlogger;
 #[macro_use]
 extern crate diesel;
-#[macro_use]
-extern crate diesel_derive_enum;
-extern crate dotenv;
-#[macro_use]
-extern crate lazy_static;
-extern crate regex;
-#[macro_use]
-extern crate rocket;
-extern crate serde;
-extern crate tempfile;
-#[macro_use]
-extern crate rocket_contrib;
-extern crate rocket_cors;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate tokio;
-extern crate tokio_process;
-#[macro_use]
-extern crate slog;
-extern crate graphql_client;
-extern crate hyper;
-extern crate hyper_tls;
-extern crate quick_xml;
-extern crate slog_async;
-extern crate slog_term;
 
 use std::{
     cmp::max,
@@ -61,15 +31,18 @@ use diesel::{prelude::*, sql_query, sql_types::Text};
 use dotenv::dotenv;
 use hyper::{client::connect::HttpConnector, Client};
 use hyper_tls::HttpsConnector;
+use lazy_static::lazy_static;
 use rocket::{
+    get,
     http::{Accept, ContentType, MediaType, Method, Status},
+    post,
     request::Form,
     response::Content,
-    State,
+    routes, State,
 };
-use rocket_contrib::json::JsonValue;
+use rocket_contrib::{json, json::JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
-use slog::{Drain, Logger};
+use slog::{debug, error, info, o, Drain, Logger};
 use tokio::{executor::current_thread::CurrentThread, prelude::Future, runtime::Runtime};
 
 use db::DbConn;

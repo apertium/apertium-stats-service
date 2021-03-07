@@ -8,16 +8,18 @@ use std::{
     str::Utf8Error,
 };
 
+use lazy_static::lazy_static;
 use regex::{Regex, RegexSet, RegexSetBuilder};
-use rocket_contrib::json::JsonValue;
+use rocket_contrib::{json, json::JsonValue};
 use slog::Logger;
 use tempfile::{tempfile, NamedTempFile};
 use tokio::prelude::{Future, Stream};
 
-use models::{FileKind, StatKind};
-use util::LANG_CODE_RE;
-use HYPER_HTTPS_CLIENT;
-use ORGANIZATION_RAW_ROOT;
+use crate::{
+    models::{FileKind, StatKind},
+    util::LANG_CODE_RE,
+    HYPER_HTTPS_CLIENT, ORGANIZATION_RAW_ROOT,
+};
 
 #[derive(Debug)]
 pub enum StatsError {

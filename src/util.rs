@@ -15,14 +15,15 @@ use diesel::{
     sqlite::Sqlite,
     types::IsNull,
 };
+use lazy_static::lazy_static;
 use regex::Regex;
 use rocket::{
     http::Status,
     response::{Responder, Response},
-    Request,
+    FromForm, Request,
 };
 use rocket_contrib::json::JsonValue as RocketJsonValue;
-use serde_json;
+use serde_derive::Serialize;
 
 pub const LANG_CODE_RE: &str = r"(\w{2,3}?)(?:_(\w+))?";
 
@@ -195,12 +196,12 @@ impl From<RocketJsonValue> for JsonValue {
 #[derive(FromForm)]
 pub struct Params {
     pub recursive: Option<bool>,
-    pub async: Option<bool>,
+    pub r#async: Option<bool>,
 }
 
 impl Params {
     pub fn is_async(&self) -> bool {
-        self.async.unwrap_or(true)
+        self.r#async.unwrap_or(true)
     }
 
     pub fn is_recursive(&self) -> bool {
@@ -212,7 +213,7 @@ impl Default for Params {
     fn default() -> Self {
         Self {
             recursive: None,
-            async: Some(true),
+            r#async: Some(true),
         }
     }
 }

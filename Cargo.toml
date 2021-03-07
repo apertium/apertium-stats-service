@@ -5,6 +5,7 @@ authors = ["Sushain Cherivirala <sushain@skc.name>"]
 repository = "https://github.com/apertium/apertium-stats-service"
 readme = "README.md"
 license = "GPLv3"
+edition = "2018"
 
 [dependencies]
 chrono = { version = "0.4.2", features = ["serde"] }

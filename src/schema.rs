@@ -1,7 +1,7 @@
 table! {
     use diesel::sql_types::{Integer, Timestamp, Text};
-    use models::{FileKindMapping, StatKindMapping};
-    use util::JsonType;
+    use crate::models::{FileKindMapping, StatKindMapping};
+    use crate::util::JsonType;
 
     entries (id) {
         id -> Integer,

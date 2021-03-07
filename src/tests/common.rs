@@ -1,7 +1,6 @@
 use std::sync::Mutex;
 
 use rocket_contrib::json::JsonValue;
-use serde_json;
 
 use super::*;
 

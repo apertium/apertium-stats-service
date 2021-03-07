@@ -1,9 +1,10 @@
 use std::{fmt, str};
 
 use chrono::NaiveDateTime;
+use diesel_derive_enum::DbEnum;
+use serde_derive::Serialize;
 
-use schema::entries;
-use util::JsonValue;
+use crate::{schema::entries, util::JsonValue};
 
 #[derive(PartialEq, Clone, Debug, Serialize, DbEnum)]
 pub enum FileKind {

@@ -8,25 +8,28 @@ use std::{
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::{self, RunQueryDsl};
+use failure::Fail;
 use graphql_client::{GraphQLQuery, Response};
+use lazy_static::lazy_static;
 use quick_xml::{
     events::{attributes::Attribute, BytesText, Event},
     Reader,
 };
-use slog::Logger;
+use serde_derive::Serialize;
+use slog::{debug, error, info, o, trace, warn, Logger};
 use tokio::{
     executor::current_thread::CurrentThread,
     prelude::{future::join_all, Future},
 };
 use tokio_process::CommandExt;
 
-use db::Pool;
-use models::{FileKind, NewEntry};
-use schema::entries;
-use stats::{get_file_kind, get_file_stats};
-use GITHUB_GRAPHQL_API_ENDPOINT;
-use HTTPS_CLIENT;
-use ORGANIZATION_ROOT;
+use crate::{
+    db::Pool,
+    models::{FileKind, NewEntry},
+    schema::entries,
+    stats::{get_file_kind, get_file_stats},
+    GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT,
+};
 
 type DateTime = chrono::DateTime<Utc>;
 type GitObjectID = String;

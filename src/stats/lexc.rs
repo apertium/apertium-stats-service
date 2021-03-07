@@ -5,12 +5,12 @@ use std::{
 };
 
 use hyper::Chunk;
+use lazy_static::lazy_static;
 use regex::Regex;
-use rocket_contrib::json::JsonValue;
-use slog::Logger;
+use rocket_contrib::{json, json::JsonValue};
+use slog::{warn, Logger};
 
-use models::StatKind;
-use stats::StatsError;
+use crate::{models::StatKind, stats::StatsError};
 
 type LexiconEntry = (Vec<String>, HashSet<(String, BTreeSet<String>)>);
 type Lexicons = HashMap<String, LexiconEntry>;

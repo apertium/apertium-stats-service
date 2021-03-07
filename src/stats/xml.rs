@@ -5,10 +5,9 @@ use quick_xml::{
     events::{attributes::Attribute, Event},
     Reader,
 };
-use rocket_contrib::json::JsonValue;
+use rocket_contrib::{json, json::JsonValue};
 
-use models::StatKind;
-use stats::StatsError;
+use crate::{models::StatKind, stats::StatsError};
 
 pub fn get_bidix_stats(body: Chunk, file_path: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let mut reader = Reader::from_str(str::from_utf8(&*body).map_err(StatsError::Utf8)?);
