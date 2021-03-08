@@ -4,7 +4,7 @@ mod xml;
 use std::{
     io::{self, Seek, SeekFrom, Write},
     num::ParseIntError,
-    process::{Command, Output},
+    process::Output,
     str::Utf8Error,
 };
 
@@ -14,6 +14,7 @@ use reqwest::Error as ReqwestError;
 use rocket_contrib::{json, json::JsonValue};
 use slog::Logger;
 use tempfile::{tempfile, NamedTempFile};
+use tokio::process::Command;
 
 use crate::{
     models::{FileKind, StatKind},
@@ -69,7 +70,8 @@ pub async fn get_file_stats(
                         .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
                 )
                 .arg("/dev/null")
-                .output();
+                .output()
+                .await;
 
             match output {
                 Ok(Output { status, ref stderr, .. }) if status.success() => {
@@ -104,7 +106,7 @@ pub async fn get_file_stats(
             lexd_file.flush().map_err(StatsError::Io)?;
             lexd_file.seek(SeekFrom::Start(0)).map_err(StatsError::Io)?;
 
-            let output = Command::new("lexd").stdin(lexd_file).arg("-x").output();
+            let output = Command::new("lexd").stdin(lexd_file).arg("-x").output().await;
 
             match output {
                 Ok(Output { status, ref stderr, .. }) if status.success() => {
