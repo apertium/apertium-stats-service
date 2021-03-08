@@ -21,6 +21,7 @@ use std::{cmp::max, collections::HashSet, env, hash::BuildHasher, sync::Arc, thr
 use chrono::Utc;
 use diesel::{prelude::*, sql_query, sql_types::Text};
 use dotenv::dotenv;
+use futures::{future::join_all, FutureExt};
 use lazy_static::lazy_static;
 use rocket::{
     get,
@@ -74,13 +75,15 @@ fn launch_tasks_and_reply(
                 Status::NotFound,
             )
         },
-        Ok((_new_tasks, in_progress_tasks, future)) => {
+        Ok((_new_tasks, in_progress_tasks, futures)) => {
             if options.is_async() {
                 let future_name = name.clone();
                 let future_worker = (*worker).clone();
                 RUNTIME.spawn(async move {
-                    let results = future.await;
-                    future_worker.handle_task_completion(&future_name, &results);
+                    join_all(futures.into_iter().map(|future| {
+                        future.map(|results| future_worker.handle_task_completion(&future_name, &results))
+                    }))
+                    .await
                 });
 
                 JsonResult::Err(
@@ -91,8 +94,10 @@ fn launch_tasks_and_reply(
                     Status::Accepted,
                 )
             } else {
-                let results = RUNTIME.block_on(future);
-                let stats = worker.handle_task_completion(&name, &results);
+                let futures = futures
+                    .into_iter()
+                    .map(|future| future.map(|results| worker.handle_task_completion(&name, &results)));
+                let stats = RUNTIME.block_on(join_all(futures));
                 JsonResult::Ok(json!({
                     "name": name,
                     "stats": stats,
