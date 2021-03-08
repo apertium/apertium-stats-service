@@ -544,11 +544,15 @@ impl Worker {
     pub fn handle_task_completion(&self, name: &str, results: &[(Task, StatsResults)]) -> Vec<NewEntry> {
         let current_tasks_guard = self.current_tasks.clone();
         let pool = self.pool.clone();
-        let logger = self.logger.clone();
 
         results
             .iter()
             .flat_map(|(task, maybe_stats)| {
+                let logger = self.logger.new(o!(
+                    "path" => task.file.path.clone(),
+                    "kind" => task.kind.to_string(),
+                ));
+
                 {
                     let mut current_tasks = current_tasks_guard.write().unwrap();
                     Worker::record_task_completion(current_tasks.entry(name.to_string()), &task);
