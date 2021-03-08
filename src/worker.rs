@@ -28,7 +28,7 @@ use crate::{
     models::{FileKind, NewEntry},
     schema::entries,
     stats::{get_file_kind, get_file_stats, StatsResults},
-    GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT, RUNTIME,
+    GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT,
 };
 
 type DateTime = chrono::DateTime<Utc>;
@@ -426,7 +426,7 @@ impl Worker {
         current_tasks.get(name).cloned()
     }
 
-    pub fn build_tasks(
+    pub async fn build_tasks(
         &self,
         name: &str,
         maybe_kind: Option<&FileKind>,
@@ -437,7 +437,7 @@ impl Worker {
             "recursive" => recursive,
         ));
 
-        let files_without_shas = RUNTIME.block_on(list_files(&logger, name, recursive))?;
+        let files_without_shas = list_files(&logger, name, recursive).await?;
 
         let mut current_tasks = self.current_tasks.write().unwrap();
         let current_package_tasks = current_tasks.entry(name.to_string());
@@ -481,10 +481,9 @@ impl Worker {
                 .map(|&revision| get_git_sha(logger.clone(), revision, &svn_path))
                 .collect::<Vec<_>>(),
         );
-        let shas = RUNTIME.block_on(sha_futures);
         let revision_sha_mapping = unique_revisions
             .into_iter()
-            .zip(shas)
+            .zip(sha_futures.await)
             .collect::<HashMap<i32, Option<String>>>();
         debug!(
             logger,
