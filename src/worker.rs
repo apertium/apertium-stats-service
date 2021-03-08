@@ -400,7 +400,7 @@ pub struct Worker {
     pub logger: Logger,
     pub packages: RwLock<Vec<Package>>,
     pub packages_updated: RwLock<Option<NaiveDateTime>>,
-    pub packages_next_update: RwLock<NaiveDateTime>,
+    pub packages_next_update: RwLock<Option<NaiveDateTime>>,
     packages_update_mutex: Mutex<()>,
     pool: Pool,
     current_tasks: Arc<RwLock<HashMap<String, Tasks>>>,
@@ -413,7 +413,7 @@ impl Worker {
             pool,
             packages: RwLock::new(vec![]),
             packages_updated: RwLock::new(None),
-            packages_next_update: RwLock::new(Utc::now().naive_utc()),
+            packages_next_update: RwLock::new(None),
             packages_update_mutex: Mutex::new(()),
             current_tasks: Arc::new(RwLock::new(HashMap::new())),
             logger,
@@ -642,8 +642,10 @@ impl Worker {
 
     pub fn record_next_packages_update(&self, next_update: Duration) {
         debug!(self.logger, "Next package update in {:?}", next_update);
-        *self.packages_next_update.write().unwrap() = Utc::now().naive_utc()
-            + chrono::Duration::from_std(next_update).unwrap_or_else(|_| chrono::Duration::zero());
+        *self.packages_next_update.write().unwrap() = Some(
+            Utc::now().naive_utc()
+                + chrono::Duration::from_std(next_update).unwrap_or_else(|_| chrono::Duration::zero()),
+        );
     }
 
     fn record_task_completion(current_package_tasks: Entry<String, Tasks>, task: &Task) {

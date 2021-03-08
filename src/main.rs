@@ -16,15 +16,7 @@ mod tests;
 #[macro_use]
 extern crate diesel;
 
-use std::{
-    cmp::max,
-    collections::HashSet,
-    env,
-    hash::BuildHasher,
-    sync::{mpsc::Receiver, Arc},
-    thread,
-    time::Duration,
-};
+use std::{cmp::max, collections::HashSet, env, hash::BuildHasher, sync::Arc, thread, time::Duration};
 
 use chrono::Utc;
 use diesel::{prelude::*, sql_query, sql_types::Text};
@@ -40,7 +32,7 @@ use rocket::{
 };
 use rocket_contrib::{json, json::JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
-use slog::{debug, error, info, o, Drain, Logger};
+use slog::{debug, error, o, Drain, Logger};
 use tokio::runtime::{self, Runtime};
 
 use db::DbConn;
@@ -423,17 +415,8 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_r
         .attach(cors_options)
 }
 
-fn start_package_update_loop(worker: Arc<Worker>, terminate_package_update_worker: Option<Receiver<()>>) {
-    let sleep = |maybe_receiver: &Option<Receiver<()>>, delay: Duration| -> bool {
-        if let Some(reciever) = maybe_receiver {
-            reciever.recv_timeout(delay).is_ok()
-        } else {
-            thread::sleep(delay);
-            false
-        }
-    };
-
-    let mut initial_delay = {
+fn start_package_update_loop(worker: Arc<Worker>, update_in_background: bool) {
+    let initial_delay = {
         match RUNTIME.block_on(worker.update_packages()) {
             Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
             Err(err) => panic!("Failed to initialize package list: {:?}", err),
@@ -441,12 +424,12 @@ fn start_package_update_loop(worker: Arc<Worker>, terminate_package_update_worke
     };
     worker.record_next_packages_update(initial_delay);
 
+    if !update_in_background {
+        return;
+    }
+
     thread::spawn(move || loop {
-        if sleep(&terminate_package_update_worker, initial_delay) {
-            info!(worker.logger, "Package update worker terminating");
-            return;
-        }
-        initial_delay = Duration::from_secs(0);
+        thread::sleep(initial_delay);
 
         let next_update = {
             match RUNTIME.block_on(worker.update_packages()) {
@@ -461,10 +444,7 @@ fn start_package_update_loop(worker: Arc<Worker>, terminate_package_update_worke
         let mut update_scheduled = Utc::now().naive_utc();
         worker.record_next_packages_update(next_update);
         loop {
-            if sleep(&terminate_package_update_worker, next_update) {
-                info!(worker.logger, "Package update worker terminating");
-                return;
-            }
+            thread::sleep(next_update);
 
             if worker.packages_updated.read().unwrap().unwrap() > update_scheduled {
                 debug!(worker.logger, "Delaying scheduled package update {:?}", next_update);
@@ -480,7 +460,7 @@ fn start_package_update_loop(worker: Arc<Worker>, terminate_package_update_worke
 pub fn service(
     database_url: String,
     github_auth_token: Option<String>,
-    terminate_package_update_worker: Option<Receiver<()>>,
+    update_packages_in_background: bool,
 ) -> rocket::Rocket {
     let pool = db::init_pool(&database_url);
     let logger = create_logger();
@@ -488,7 +468,7 @@ pub fn service(
 
     let package_listing_routes_enabled = match github_auth_token {
         Some(_) => {
-            start_package_update_loop(worker.clone(), terminate_package_update_worker);
+            start_package_update_loop(worker.clone(), update_packages_in_background);
             true
         },
         None => false,
@@ -507,5 +487,5 @@ fn main() {
         eprintln!("GITHUB_AUTH_TOKEN environment variable not set -- /packages route will be unavailable");
     }
 
-    service(database_url, github_auth_token, None).launch();
+    service(database_url, github_auth_token, true).launch();
 }
