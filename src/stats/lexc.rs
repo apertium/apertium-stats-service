@@ -1,10 +1,9 @@
 use std::{
     collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
-    io::{BufRead, BufReader},
     iter::FromIterator,
+    str::Lines,
 };
 
-use hyper::Chunk;
 use lazy_static::lazy_static;
 use regex::Regex;
 use rocket_contrib::{json, json::JsonValue};
@@ -137,7 +136,7 @@ fn parse_line(
     }
 }
 
-fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(StatKind, JsonValue), StatsError> {
+fn get_stems(logger: &Logger, lines: Lines, vanilla_only: bool) -> Result<(StatKind, JsonValue), StatsError> {
     let mut current_lexicon: Option<String> = None;
     let mut lexicons: Lexicons = HashMap::new();
 
@@ -146,7 +145,7 @@ fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(S
         static ref CLEAN_COMMENTS_RE: Regex = Regex::new(r"!.*$").unwrap();
     }
 
-    for (line_number, line) in lines.iter().enumerate() {
+    for (line_number, line) in lines.enumerate() {
         let vanilla = !line.contains("Use/MT");
         let unescaped_line = ESCAPE_RE.replace_all(&line, r"\1");
         let without_comments_line = CLEAN_COMMENTS_RE.replace(&unescaped_line, "");
@@ -188,14 +187,12 @@ fn get_stems(logger: &Logger, lines: &[String], vanilla_only: bool) -> Result<(S
     }
 }
 
-pub fn get_stats(logger: &Logger, body: Chunk) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
-    let lines = BufReader::new(&*body)
-        .lines()
-        .filter_map(|line| line.ok())
-        .collect::<Vec<_>>();
+pub fn get_stats(logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+    let lines = body.lines();
+    let lines_clone = lines.clone();
 
     Ok(vec![
-        get_stems(logger, &lines, true)?,
-        get_stems(logger, &lines, false)?,
+        get_stems(logger, lines, true)?,
+        get_stems(logger, lines_clone, false)?,
     ])
 }
