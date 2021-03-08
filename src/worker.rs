@@ -100,6 +100,7 @@ enum PackageUpdateError {
 
 async fn get_git_sha(logger: Logger, revision: i32, svn_path: &str) -> Option<String> {
     let sha_future = Command::new("svn")
+        .arg("--non-interactive")
         .arg("propget")
         .arg("git-commit")
         .arg("--revprop")
@@ -145,6 +146,7 @@ async fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Res
 
     let svn_path = format!("{}/{}/trunk", ORGANIZATION_ROOT, package_name);
     let output = Command::new("svn")
+        .arg("--non-interactive")
         .arg("list")
         .arg("--xml")
         .args(if recursive { vec!["--recursive"] } else { vec![] })
