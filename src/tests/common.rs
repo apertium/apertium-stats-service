@@ -44,8 +44,8 @@ macro_rules! run_test_with_github_auth {
         let (termination_send, termination_recv) = sync::mpsc::channel();
         let $client = Client::new(service(db_path.into(), github_auth_token, Some(termination_recv)))
             .expect("valid rocket instance");
+        termination_send.send(()).expect("should have a thread to terminate");
         $block
-        termination_send.send(()).expect("should have a thread to terminate")
     }};
 }
 

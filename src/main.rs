@@ -423,16 +423,7 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_r
         .attach(cors_options)
 }
 
-pub fn service(
-    database_url: String,
-    github_auth_token: Option<String>,
-    terminate_package_update_worker: Option<Receiver<()>>,
-) -> rocket::Rocket {
-    let pool = db::init_pool(&database_url);
-    let logger = create_logger();
-    let package_listing_routes_enabled = github_auth_token.is_some();
-    let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token));
-
+fn start_package_update_loop(worker: Arc<Worker>, terminate_package_update_worker: Option<Receiver<()>>) {
     let sleep = |maybe_receiver: &Option<Receiver<()>>, delay: Duration| -> bool {
         if let Some(reciever) = maybe_receiver {
             reciever.recv_timeout(delay).is_ok()
@@ -442,54 +433,70 @@ pub fn service(
         }
     };
 
-    if package_listing_routes_enabled {
-        let mut initial_delay = {
-            match RUNTIME.block_on(worker.update_packages()) {
+    let mut initial_delay = {
+        match RUNTIME.block_on(worker.update_packages()) {
+            Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
+            Err(err) => panic!("Failed to initialize package list: {:?}", err),
+        }
+    };
+    worker.record_next_packages_update(initial_delay);
+
+    let package_update_worker = worker.clone();
+    thread::spawn(move || loop {
+        if sleep(&terminate_package_update_worker, initial_delay) {
+            info!(package_update_worker.logger, "Package update worker terminating");
+            return;
+        }
+        initial_delay = Duration::from_secs(0);
+
+        let next_update = {
+            match RUNTIME.block_on(package_update_worker.update_packages()) {
                 Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
-                Err(err) => panic!("Failed to initialize package list: {:?}", err),
+                Err(err) => {
+                    error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
+                    PACKAGE_UPDATE_FALLBACK_INTERVAL
+                },
             }
         };
-        worker.record_next_packages_update(initial_delay);
 
-        let package_update_worker = worker.clone();
-        thread::spawn(move || loop {
-            if sleep(&terminate_package_update_worker, initial_delay) {
+        let mut update_scheduled = Utc::now().naive_utc();
+        package_update_worker.record_next_packages_update(next_update);
+        loop {
+            if sleep(&terminate_package_update_worker, next_update) {
                 info!(package_update_worker.logger, "Package update worker terminating");
                 return;
             }
-            initial_delay = Duration::from_secs(0);
 
-            let next_update = {
-                match RUNTIME.block_on(package_update_worker.update_packages()) {
-                    Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
-                    Err(err) => {
-                        error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
-                        PACKAGE_UPDATE_FALLBACK_INTERVAL
-                    },
-                }
-            };
-
-            let mut update_scheduled = Utc::now().naive_utc();
-            package_update_worker.record_next_packages_update(next_update);
-            loop {
-                if sleep(&terminate_package_update_worker, next_update) {
-                    info!(package_update_worker.logger, "Package update worker terminating");
-                    return;
-                }
-
-                if package_update_worker.packages_updated.read().unwrap().unwrap() > update_scheduled {
-                    debug!(
-                        package_update_worker.logger,
-                        "Delaying scheduled package update {:?}", next_update
-                    );
-                    update_scheduled = Utc::now().naive_utc();
-                    package_update_worker.record_next_packages_update(next_update);
-                } else {
-                    break;
-                }
+            if package_update_worker.packages_updated.read().unwrap().unwrap() > update_scheduled {
+                debug!(
+                    package_update_worker.logger,
+                    "Delaying scheduled package update {:?}", next_update
+                );
+                update_scheduled = Utc::now().naive_utc();
+                package_update_worker.record_next_packages_update(next_update);
+            } else {
+                break;
             }
-        });
-    }
+        }
+    });
+}
+
+pub fn service(
+    database_url: String,
+    github_auth_token: Option<String>,
+    terminate_package_update_worker: Option<Receiver<()>>,
+) -> rocket::Rocket {
+    let pool = db::init_pool(&database_url);
+    let logger = create_logger();
+    let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token.clone()));
+
+    let package_listing_routes_enabled = match github_auth_token {
+        Some(_) => {
+            start_package_update_loop(worker.clone(), terminate_package_update_worker);
+            true
+        },
+        None => false,
+    };
 
     rocket(pool, worker, logger, package_listing_routes_enabled)
 }
