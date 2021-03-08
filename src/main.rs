@@ -441,39 +441,35 @@ fn start_package_update_loop(worker: Arc<Worker>, terminate_package_update_worke
     };
     worker.record_next_packages_update(initial_delay);
 
-    let package_update_worker = worker.clone();
     thread::spawn(move || loop {
         if sleep(&terminate_package_update_worker, initial_delay) {
-            info!(package_update_worker.logger, "Package update worker terminating");
+            info!(worker.logger, "Package update worker terminating");
             return;
         }
         initial_delay = Duration::from_secs(0);
 
         let next_update = {
-            match RUNTIME.block_on(package_update_worker.update_packages()) {
+            match RUNTIME.block_on(worker.update_packages()) {
                 Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
                 Err(err) => {
-                    error!(package_update_worker.logger, "Failed to update packages: {:?}", err);
+                    error!(worker.logger, "Failed to update packages: {:?}", err);
                     PACKAGE_UPDATE_FALLBACK_INTERVAL
                 },
             }
         };
 
         let mut update_scheduled = Utc::now().naive_utc();
-        package_update_worker.record_next_packages_update(next_update);
+        worker.record_next_packages_update(next_update);
         loop {
             if sleep(&terminate_package_update_worker, next_update) {
-                info!(package_update_worker.logger, "Package update worker terminating");
+                info!(worker.logger, "Package update worker terminating");
                 return;
             }
 
-            if package_update_worker.packages_updated.read().unwrap().unwrap() > update_scheduled {
-                debug!(
-                    package_update_worker.logger,
-                    "Delaying scheduled package update {:?}", next_update
-                );
+            if worker.packages_updated.read().unwrap().unwrap() > update_scheduled {
+                debug!(worker.logger, "Delaying scheduled package update {:?}", next_update);
                 update_scheduled = Utc::now().naive_utc();
-                package_update_worker.record_next_packages_update(next_update);
+                worker.record_next_packages_update(next_update);
             } else {
                 break;
             }
