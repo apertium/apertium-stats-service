@@ -34,24 +34,18 @@ macro_rules! run_test {
 
 macro_rules! run_test_with_github_auth {
     (| $client:ident | $block:expr) => {{
-        use std::{panic, sync};
+        use std::sync;
 
         dotenv().ok();
         let db_file = $crate::tests::common::setup_database();
         let db_path = db_file.path().to_str().expect("valid database path");
         let github_auth_token =
             Some(env::var("GITHUB_AUTH_TOKEN").expect("testing requires GITHUB_AUTH_TOKEN environment variable"));
-        let guard = GITHUB_AUTH_MUTEX.lock().unwrap();
-        if let Err(err) = panic::catch_unwind(|| {
-            let (termination_send, termination_recv) = sync::mpsc::channel();
-            let $client = Client::new(service(db_path.into(), github_auth_token, Some(termination_recv)))
-                .expect("valid rocket instance");
-            $block
-            termination_send.send(()).expect("should have a thread to terminate")
-        }) {
-            drop(guard);
-            panic::resume_unwind(err);
-        }
+        let (termination_send, termination_recv) = sync::mpsc::channel();
+        let $client = Client::new(service(db_path.into(), github_auth_token, Some(termination_recv)))
+            .expect("valid rocket instance");
+        $block
+        termination_send.send(()).expect("should have a thread to terminate")
     }};
 }
 
