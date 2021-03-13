@@ -28,7 +28,7 @@ use crate::{
     models::{FileKind, NewEntry},
     schema::entries,
     stats::{get_file_kind, get_file_stats, StatsResults},
-    GITHUB_GRAPHQL_API_ENDPOINT, HTTPS_CLIENT, ORGANIZATION_ROOT,
+    HTTPS_CLIENT, ORGANIZATION_ROOT,
 };
 
 type DateTime = chrono::DateTime<Utc>;
@@ -281,6 +281,7 @@ async fn list_files(logger: &Logger, package_name: &str, recursive: bool) -> Res
 async fn get_packages(
     logger: &Logger,
     github_auth_token: &str,
+    github_graphql_api_endpoint: &str,
     after: Option<&String>,
 ) -> Result<(Vec<Package>, Option<String>, packages_query::PackagesQueryRateLimit), failure::Error> {
     lazy_static! {
@@ -300,7 +301,7 @@ async fn get_packages(
 
     let query = PackagesQuery::build_query(packages_query::Variables { after: after.cloned() });
     let response: Response<packages_query::ResponseData> = HTTPS_CLIENT
-        .post(GITHUB_GRAPHQL_API_ENDPOINT)
+        .post(github_graphql_api_endpoint)
         .bearer_auth(github_auth_token)
         .json(&query)
         .send()
@@ -406,11 +407,17 @@ pub struct Worker {
     packages_update_mutex: Mutex<()>,
     pool: Pool,
     current_tasks: Arc<RwLock<HashMap<String, Tasks>>>,
+    github_graphql_api_endpoint: String,
     github_auth_token: Option<String>,
 }
 
 impl Worker {
-    pub fn new(pool: Pool, logger: Logger, github_auth_token: Option<String>) -> Worker {
+    pub fn new(
+        pool: Pool,
+        logger: Logger,
+        github_auth_token: Option<String>,
+        github_graphql_api_endpoint: String,
+    ) -> Worker {
         Worker {
             pool,
             packages: RwLock::new(vec![]),
@@ -419,6 +426,7 @@ impl Worker {
             packages_update_mutex: Mutex::new(()),
             current_tasks: Arc::new(RwLock::new(HashMap::new())),
             logger,
+            github_graphql_api_endpoint,
             github_auth_token,
         }
     }
@@ -613,12 +621,17 @@ impl Worker {
         let mut packages = Vec::new();
 
         let (mut new_packages, mut after, mut rate_limits) =
-            get_packages(&self.logger, github_auth_token, None).await?;
+            get_packages(&self.logger, github_auth_token, &self.github_graphql_api_endpoint, None).await?;
         let mut total_cost = rate_limits.cost;
         packages.append(&mut new_packages);
         while after.is_some() {
-            let (mut new_packages, new_after, new_rate_limits) =
-                get_packages(&self.logger, github_auth_token, after.as_ref()).await?;
+            let (mut new_packages, new_after, new_rate_limits) = get_packages(
+                &self.logger,
+                github_auth_token,
+                &self.github_graphql_api_endpoint,
+                after.as_ref(),
+            )
+            .await?;
             after = new_after;
             rate_limits = new_rate_limits;
             total_cost += rate_limits.cost;
