@@ -3,7 +3,7 @@ mod lexd;
 mod xml;
 
 use std::{
-    io::{self, Seek, SeekFrom, Write},
+    io::{self, Write},
     num::ParseIntError,
     process::Output,
     str::Utf8Error,
@@ -14,7 +14,7 @@ use regex::{Regex, RegexSet, RegexSetBuilder};
 use reqwest::Error as ReqwestError;
 use rocket_contrib::{json, json::JsonValue};
 use slog::Logger;
-use tempfile::{tempfile, NamedTempFile};
+use tempfile::NamedTempFile;
 use tokio::process::Command;
 
 use crate::{

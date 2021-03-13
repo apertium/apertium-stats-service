@@ -4,7 +4,7 @@ use tree_sitter::{Language, Parser, TreeCursor};
 
 use rocket_contrib::{json, json::JsonValue};
 
-use slog::{warn, Logger};
+use slog::Logger;
 
 use crate::{models::StatKind, stats::StatsError};
 
@@ -12,7 +12,7 @@ extern "C" {
     fn tree_sitter_lexd() -> Language;
 }
 
-pub fn get_stats(logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
+pub fn get_stats(_logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValue)>, StatsError> {
     let mut parser = Parser::new();
     let language = unsafe { tree_sitter_lexd() };
     parser.set_language(language).unwrap();
