@@ -33,8 +33,13 @@ To persist data across restarts, use `docker-compose.yml` instead:
 Development
 -----------
 
+Install the Rust toolchain via [`rustup`][3].
+
+Setup a SQLite database with `diesel database setup`.
+
 Run `cargo fmt` to format code, `cargo clippy` to check for lint and
 `cargo test` to run tests.
 
 [1]: https://apertium.github.io/apertium-stats-service/
 [2]: https://rocket.rs/guide/configuration
+[3]: https://rustup.rs/
