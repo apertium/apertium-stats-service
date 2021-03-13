@@ -1,0 +1,3 @@
+[submodule "src/stats/tree-sitter-apertium"]
+	path = src/stats/tree-sitter-apertium
+	url = git@github.com:mr-martian/tree-sitter-apertium.git
