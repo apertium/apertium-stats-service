@@ -92,7 +92,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: "0.16.0"
-          args: --out Lcov --timeout 120
+          args: --out Lcov --timeout 120 --debug
       - name: Upload coverage
         uses: coverallsapp/github-action@master
         with:
