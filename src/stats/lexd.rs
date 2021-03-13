@@ -18,7 +18,7 @@ pub fn get_stats(_logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValu
         .map_err(|e| StatsError::Lexd(format!("Unable to load tree-sitter parser: {}", e)))?;
     let tree = parser
         .parse(body, None)
-        .ok_or_else(|| StatsError::Lexd(format!("Unable to parse lexd file")))?;
+        .ok_or_else(|| StatsError::Lexd("Unable to parse lexd file".to_string()))?;
     let mut lexicons: HashSet<&str> = HashSet::new();
     let mut patterns: HashSet<&str> = HashSet::new();
     let mut lex_entries: usize = 0;
