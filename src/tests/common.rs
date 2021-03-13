@@ -51,7 +51,6 @@ macro_rules! run_test_with_github_auth {
                 JsonValue(PACKAGE_LISTING[i-1]["data"]["organization"]["repositories"]["pageInfo"]["endCursor"].clone())
             };
 
-            println!("listing {} after is {:?}", i, after);
             server.mock(|when, then| {
                 when.method(POST)
                     .path("/")
