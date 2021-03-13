@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use tree_sitter::{Language, Parser, TreeCursor};
-
 use rocket_contrib::{json, json::JsonValue};
-
 use slog::Logger;
 
 use crate::{models::StatKind, stats::StatsError};
