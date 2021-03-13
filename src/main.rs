@@ -37,7 +37,7 @@ use slog::{debug, error, o, Drain, Logger};
 use tokio::runtime::{self, Runtime};
 
 use db::DbConn;
-use models::{FileKind, FileKindMapping};
+use models::{FileKind, FileKindMapping, NewEntry};
 use schema::entries as entries_db;
 use util::{normalize_name, JsonResult, Params};
 use worker::{Package, Task, Worker};
@@ -96,7 +96,8 @@ fn launch_tasks_and_reply(
                 let futures = futures
                     .into_iter()
                     .map(|future| future.map(|results| worker.handle_task_completion(&name, &results)));
-                let stats = RUNTIME.block_on(join_all(futures));
+                let result = RUNTIME.block_on(join_all(futures));
+                let stats: Vec<&NewEntry> = result.iter().flatten().collect();
                 JsonResult::Ok(json!({
                     "name": name,
                     "stats": stats,
