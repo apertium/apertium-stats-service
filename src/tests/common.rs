@@ -46,7 +46,7 @@ macro_rules! run_test_with_github_auth {
 
         let server = MockServer::start();
         for (i, mut listing) in PACKAGE_LISTING.clone().into_iter().enumerate() {
-            let reset = (Utc::now() + Duration::minutes(2)).format("%FT%TZ").to_string();
+            let reset = (Utc::now() + Duration::minutes(10)).format("%FT%TZ").to_string();
             listing["data"]["rateLimit"]["resetAt"] = json!(&reset).into();
 
             let after = if i == 0 {
