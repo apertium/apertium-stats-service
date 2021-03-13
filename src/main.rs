@@ -44,7 +44,6 @@ use worker::{Package, Task, Worker};
 
 pub const ORGANIZATION_ROOT: &str = "https://github.com/apertium";
 pub const ORGANIZATION_RAW_ROOT: &str = "https://raw.githubusercontent.com/apertium";
-pub const GITHUB_API_REPOS_ENDPOINT: &str = "https://api.github.com/orgs/apertium/repos";
 pub const GITHUB_GRAPHQL_API_ENDPOINT: &str = "https://api.github.com/graphql";
 pub const PACKAGE_UPDATE_MIN_INTERVAL: Duration = Duration::from_secs(10);
 pub const PACKAGE_UPDATE_FALLBACK_INTERVAL: Duration = Duration::from_secs(120);
@@ -420,7 +419,7 @@ fn rocket(pool: db::Pool, worker: Arc<Worker>, logger: Logger, package_listing_r
         .attach(cors_options)
 }
 
-fn start_package_update_loop(worker: Arc<Worker>, update_in_background: bool) {
+fn start_package_update_loop(worker: Arc<Worker>) {
     let initial_delay = {
         match RUNTIME.block_on(worker.update_packages()) {
             Ok(interval) => max(interval, PACKAGE_UPDATE_MIN_INTERVAL),
@@ -428,10 +427,6 @@ fn start_package_update_loop(worker: Arc<Worker>, update_in_background: bool) {
         }
     };
     worker.record_next_packages_update(initial_delay);
-
-    if !update_in_background {
-        return;
-    }
 
     thread::spawn(move || loop {
         thread::sleep(initial_delay);
@@ -464,16 +459,23 @@ fn start_package_update_loop(worker: Arc<Worker>, update_in_background: bool) {
 
 pub fn service(
     database_url: String,
-    github_auth_token: Option<String>,
-    update_packages_in_background: bool,
+    github_auth_token: Option<&str>,
+    github_graphql_api_endpoint: Option<&str>,
 ) -> rocket::Rocket {
     let pool = db::init_pool(&database_url);
     let logger = create_logger();
-    let worker = Arc::new(Worker::new(pool.clone(), logger.clone(), github_auth_token.clone()));
+    let worker = Arc::new(Worker::new(
+        pool.clone(),
+        logger.clone(),
+        github_auth_token.map(str::to_owned),
+        github_graphql_api_endpoint
+            .unwrap_or(GITHUB_GRAPHQL_API_ENDPOINT)
+            .to_owned(),
+    ));
 
     let package_listing_routes_enabled = match github_auth_token {
         Some(_) => {
-            start_package_update_loop(worker.clone(), update_packages_in_background);
+            start_package_update_loop(worker.clone());
             true
         },
         None => false,
@@ -492,5 +494,5 @@ fn main() {
         eprintln!("GITHUB_AUTH_TOKEN environment variable not set -- /packages route will be unavailable");
     }
 
-    service(database_url, github_auth_token, true).launch();
+    service(database_url, github_auth_token.as_deref(), None).launch();
 }
