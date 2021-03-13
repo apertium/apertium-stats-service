@@ -92,7 +92,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: "0.16.0"
-          args: --out Lcov
+          args: --out Lcov --timeout 120 --exclude-files src/stats/tree-sitter-apertium/*
       - name: Upload coverage
         uses: coverallsapp/github-action@master
         with:

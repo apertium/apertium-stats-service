@@ -27,12 +27,12 @@ pub fn get_stats(_logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValu
     let mut walker: TreeCursor = tree.root_node().walk();
 
     for child in tree.root_node().children(&mut walker) {
-        let mut walker2: TreeCursor = child.walk();
+        let mut child_walker: TreeCursor = child.walk();
         if child.kind() == "pattern_block" {
-            if child.child(0).unwrap().kind() == "pattern_start" {
+            if child.child(0).map(|node| node.kind()) == Some("pattern_start") {
                 patterns.insert("");
             }
-            for line in child.children(&mut walker2) {
+            for line in child.children(&mut child_walker) {
                 if line.kind() == "pattern_line" {
                     pat_entries += 1;
                 } else if line.kind() == "identifier" {
@@ -40,7 +40,7 @@ pub fn get_stats(_logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValu
                 }
             }
         } else if child.kind() == "lexicon_block" {
-            for line in child.children(&mut walker2) {
+            for line in child.children(&mut child_walker) {
                 if line.kind() == "lexicon_line" {
                     lex_entries += 1;
                 } else if line.kind() == "identifier" {
