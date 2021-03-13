@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
+        with:
+          submodules: true
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -46,7 +48,7 @@ jobs:
       - name: Install apertium-all-dev
         run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
       - name: Install other language tools
-        run: sudo apt-get install cg3 lexd
+        run: sudo apt-get install cg3
 
       - name: Install diesel_cli
         uses: actions-rs/install@v0.1
@@ -65,6 +67,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
+        with:
+          submodules: true
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -76,7 +80,7 @@ jobs:
       - name: Install apertium-all-dev
         run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
       - name: Install other language tools
-        run: sudo apt-get install cg3 lexd
+        run: sudo apt-get install cg3
 
       - name: Install diesel_cli
         uses: actions-rs/install@v0.1
