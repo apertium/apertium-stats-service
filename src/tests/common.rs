@@ -37,6 +37,7 @@ macro_rules! run_test {
 macro_rules! run_test_with_github_auth {
     (| $client:ident | $block:expr) => {{
         use httpmock::{Method::POST, MockServer};
+        use chrono::{Duration, Utc};
 
         let github_auth_token = "fake_token";
 
@@ -44,7 +45,10 @@ macro_rules! run_test_with_github_auth {
         let db_path = db_file.path().to_str().expect("valid database path");
 
         let server = MockServer::start();
-        for (i, listing) in PACKAGE_LISTING.iter().enumerate() {
+        for (i, mut listing) in PACKAGE_LISTING.clone().into_iter().enumerate() {
+            let reset = (Utc::now() + Duration::minutes(2)).format("%FT%TZ").to_string();
+            listing["data"]["rateLimit"]["resetAt"] = json!(&reset).into();
+
             let after = if i == 0 {
                 json!(null)
             } else {
@@ -63,7 +67,7 @@ macro_rules! run_test_with_github_auth {
                 then
                     .status(200)
                     .header("Content-Type", "application/json")
-                    .body(serde_json::to_string(listing).unwrap());
+                    .body(serde_json::to_string(&listing).unwrap());
             });
         }
 
