@@ -102,6 +102,7 @@ dependencies = [
 name = "apertium-stats-service"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "chrono",
  "diesel",
  "diesel-derive-enum",
@@ -127,6 +128,7 @@ dependencies = [
  "slog-term",
  "tempfile",
  "tokio",
+ "tree-sitter",
 ]
 
 [[package]]
@@ -3102,6 +3104,16 @@ name = "traitobject"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efd1f82c56340fdf16f2a953d7bda4f8fdffba13d93b00844c25572110b26079"
+
+[[package]]
+name = "tree-sitter"
+version = "0.19.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f41201fed3db3b520405a9c01c61773a250d4c3f43e9861c14b2bb232c981ab"
+dependencies = [
+ "cc",
+ "regex 1.4.3",
+]
 
 [[package]]
 name = "try-lock"

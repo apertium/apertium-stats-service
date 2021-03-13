@@ -1,8 +1,9 @@
 mod lexc;
+mod lexd;
 mod xml;
 
 use std::{
-    io::{self, Seek, SeekFrom, Write},
+    io::{self, Write},
     num::ParseIntError,
     process::Output,
     str::Utf8Error,
@@ -13,7 +14,7 @@ use regex::{Regex, RegexSet, RegexSetBuilder};
 use reqwest::Error as ReqwestError;
 use rocket_contrib::{json, json::JsonValue};
 use slog::Logger;
-use tempfile::{tempfile, NamedTempFile};
+use tempfile::NamedTempFile;
 use tokio::process::Command;
 
 use crate::{
@@ -100,51 +101,7 @@ pub async fn get_file_stats(
             Ok(vec![(StatKind::Rules, json!(rule_count))])
         },
         FileKind::Lexc => self::lexc::get_stats(&logger, &body),
-        FileKind::Lexd => {
-            let mut lexd_file = tempfile().map_err(StatsError::Io)?;
-            lexd_file.write_all(body.as_bytes()).map_err(StatsError::Io)?;
-            lexd_file.flush().map_err(StatsError::Io)?;
-            lexd_file.seek(SeekFrom::Start(0)).map_err(StatsError::Io)?;
-
-            let output = Command::new("lexd").stdin(lexd_file).arg("-x").output().await;
-
-            match output {
-                Ok(Output { status, ref stderr, .. }) if status.success() => {
-                    let lexd_output = String::from_utf8_lossy(stderr);
-
-                    lazy_static! {
-                        static ref RE: Regex = Regex::new(
-                            r"Lexicons: (\d+)\nLexicon entries: (\d+)\nPatterns: (\d+)\nPattern entries: (\d+)"
-                        )
-                        .unwrap();
-                    }
-                    let captures = RE
-                        .captures(&lexd_output)
-                        .ok_or_else(|| StatsError::Lexd("Missing stats".to_string()))?;
-
-                    let mut stats = vec![];
-                    for (i, kind) in vec![
-                        StatKind::Lexicons,
-                        StatKind::LexiconEntries,
-                        StatKind::Patterns,
-                        StatKind::PatternEntries,
-                    ]
-                    .into_iter()
-                    .enumerate()
-                    {
-                        stats.push((
-                            kind,
-                            json!(captures[i + 1]
-                                .parse::<i32>()
-                                .map_err(|e: ParseIntError| StatsError::Lexd(e.to_string()))?),
-                        ))
-                    }
-                    Ok(stats)
-                },
-                Ok(Output { ref stderr, .. }) => Err(StatsError::Lexd(String::from_utf8_lossy(stderr).to_string())),
-                Err(err) => Err(StatsError::Io(err)),
-            }
-        },
+        FileKind::Lexd => self::lexd::get_stats(&logger, &body),
     }
 }
 
