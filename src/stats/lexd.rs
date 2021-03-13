@@ -25,12 +25,26 @@ pub fn get_stats(logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValue
 	let mut walker: TreeCursor = tree.root_node().walk();
 
     for child in tree.root_node().children(&mut walker) {
+		let mut walker2: TreeCursor = child.walk();
 		if child.kind() == "pattern_block" {
-		   //patterns++;
-		   pat_entries += 1;
+		   if child.child(0).unwrap().kind() == "pattern_start" {
+			  patterns.insert("".to_string());
+		   }
+		   for line in child.children(&mut walker2) {
+		   	   if line.kind() == "pattern_line" {
+				   pat_entries += 1;
+			   } else if line.kind() == "identifier" {
+			   	  patterns.insert(body[line.byte_range()].to_string());
+			   }
+		   }
 		} else if child.kind() == "lexicon_block" {
-		   //lexicons++;
-		   lex_entries += 1;
+		   for line in child.children(&mut walker2) {
+		   	   if line.kind() == "lexicon_line" {
+			   	  lex_entries += 1;
+			   } else if line.kind() == "identifier" {
+			   	  lexicons.insert(body[line.byte_range()].to_string());
+			   }
+		   }
 		}
 	}
 
