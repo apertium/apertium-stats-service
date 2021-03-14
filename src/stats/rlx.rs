@@ -22,7 +22,8 @@ pub fn get_stats(_logger: &Logger, body: &str) -> Result<Vec<(StatKind, JsonValu
 
     let mut walker: TreeCursor = tree.root_node().walk();
     for child in tree.root_node().children(&mut walker) {
-        if child.kind() == "rule" {
+        let kind = child.kind();
+        if kind == "rule" || kind.starts_with("rule_") {
             rules += 1;
         }
     }

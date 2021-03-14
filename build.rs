@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
 fn main() {
-    let ts_lexd_dir = PathBuf::from(r"src/stats/tree-sitter-apertium/tree-sitter-lexd/src");
-    let ts_cg_dir = PathBuf::from(r"src/stats/tree-sitter-apertium/tree-sitter-cg/src");
+    let includes = vec![
+        PathBuf::from(r"src/stats/tree-sitter-apertium/tree-sitter-lexd/src"),
+        PathBuf::from(r"src/stats/tree-sitter-apertium/tree-sitter-cg/src"),
+    ];
     cc::Build::new()
-        .includes(vec![&ts_lexd_dir, &ts_cg_dir])
-        .files(vec![ts_lexd_dir.join("parser.c"), ts_cg_dir.join("parser.c")])
+        .includes(&includes)
+        .files(vec![includes[0].join("parser.c"), includes[1].join("parser.c")])
         .compile("tree-sitter");
 }
