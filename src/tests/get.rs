@@ -254,12 +254,7 @@ fn lexd_module_stats() {
 
 #[test]
 fn module_specific_stats() {
-    #[cfg(not(tarpaulin))]
     let kinds = [("monodix", 2), ("rlx", 1), ("postdix", 1)];
-
-    // TODO: Bring back `rlx` once tarpaulin doesn't sometimes hang on `cg-comp`.
-    #[cfg(tarpaulin)]
-    let kinds = [("monodix", 2), ("postdix", 1)];
 
     for (kind, stat_count) in &kinds {
         let module = format!("apertium-{}", TEST_LT_MODULE);
