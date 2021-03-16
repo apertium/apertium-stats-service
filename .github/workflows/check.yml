@@ -47,11 +47,6 @@ jobs:
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v1
 
-      - name: Install apertium-all-dev
-        run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
-      - name: Install other language tools
-        run: sudo apt-get install cg3
-
       - name: Install diesel_cli
         uses: actions-rs/install@v0.1
         with:
@@ -76,11 +71,6 @@ jobs:
           override: true
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v1
-
-      - name: Install apertium-all-dev
-        run: wget http://apertium.projectjj.com/apt/install-nightly.sh -O - | sudo bash
-      - name: Install other language tools
-        run: sudo apt-get install cg3
 
       - name: Install diesel_cli
         uses: actions-rs/install@v0.1

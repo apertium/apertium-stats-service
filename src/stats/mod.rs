@@ -1,21 +1,18 @@
 mod lexc;
 mod lexd;
+mod rlx;
 mod xml;
 
 use std::{
-    io::{self, Write},
-    num::ParseIntError,
-    process::Output,
+    io::{self},
     str::Utf8Error,
 };
 
 use lazy_static::lazy_static;
-use regex::{Regex, RegexSet, RegexSetBuilder};
+use regex::{RegexSet, RegexSetBuilder};
 use reqwest::Error as ReqwestError;
 use rocket_contrib::{json, json::JsonValue};
 use slog::Logger;
-use tempfile::NamedTempFile;
-use tokio::process::Command;
 
 use crate::{
     models::{FileKind, StatKind},
@@ -29,7 +26,7 @@ pub enum StatsError {
     Utf8(Utf8Error),
     Io(io::Error),
     Xml(String),
-    CgComp(String),
+    Rlx(String),
     Lexd(String),
     Lexc(String),
 }
@@ -60,42 +57,7 @@ pub async fn get_file_stats(
         FileKind::Monodix | FileKind::MetaMonodix => self::xml::get_monodix_stats(&body, &file_path),
         FileKind::Bidix | FileKind::MetaBidix | FileKind::Postdix => self::xml::get_bidix_stats(&body, &file_path),
         FileKind::Transfer => self::xml::get_transfer_stats(&body, &file_path),
-        FileKind::Rlx => {
-            let mut rlx_file = NamedTempFile::new().map_err(StatsError::Io)?;
-            rlx_file.write_all(body.as_bytes()).map_err(StatsError::Io)?;
-            let output = Command::new("cg-comp")
-                .arg(
-                    rlx_file
-                        .path()
-                        .to_str()
-                        .ok_or_else(|| StatsError::CgComp("Unable to create temporary file".to_string()))?,
-                )
-                .arg("/dev/null")
-                .output()
-                .await;
-
-            match output {
-                Ok(Output { status, ref stderr, .. }) if status.success() => {
-                    let cg_conv_output = String::from_utf8_lossy(stderr);
-                    lazy_static! {
-                        static ref RE: Regex = Regex::new(r"(\w+): (\d+)").unwrap();
-                    }
-                    for capture in RE.captures_iter(&cg_conv_output) {
-                        if &capture[1] == "Rules" {
-                            let rule_count_string = &capture[2];
-                            let rule_count: u32 = rule_count_string
-                                .parse()
-                                .map_err(|e: ParseIntError| StatsError::CgComp(e.to_string()))?;
-                            return Ok(vec![(StatKind::Rules, json!(rule_count))]);
-                        }
-                    }
-
-                    Err(StatsError::CgComp(format!("No stats in output: {}", &cg_conv_output)))
-                },
-                Ok(Output { ref stderr, .. }) => Err(StatsError::CgComp(String::from_utf8_lossy(stderr).to_string())),
-                Err(err) => Err(StatsError::Io(err)),
-            }
-        },
+        FileKind::Rlx => self::rlx::get_stats(&logger, &body),
         FileKind::Twol => {
             let rule_count = body.lines().filter(|line| line.starts_with('"')).count();
             Ok(vec![(StatKind::Rules, json!(rule_count))])
